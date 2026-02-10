@@ -93,7 +93,13 @@
       "vscodePathSelect": "Seleziona",
       "vscodePathReset": "Ripristina predefinito",
       "antigravityAppPath": "Percorso app Antigravity",
-      "antigravityTitle": "Avvio di Antigravity"
+      "antigravityTitle": "Avvio di Antigravity",
+      "commonTitle": "Generale",
+      "antigravitySettingsTitle": "Impostazioni Antigravity",
+      "codexSettingsTitle": "Impostazioni Codex",
+      "githubCopilotSettingsTitle": "Impostazioni GitHub Copilot",
+      "ghcpAutoRefresh": "Aggiornamento automatico quota GitHub Copilot",
+      "ghcpAutoRefreshDesc": "Frequenza di aggiornamento in background"
     },
     "network": {
       "apiTitle": "Antigravity Cockpit API",
@@ -767,6 +773,15 @@
           "commandWin": "Windows: taskkill /F /PID <pid> (corrispondenza CODEX_HOME)"
         }
       }
+    },
+    "refreshSuccess": "Quota aggiornata",
+    "refreshFailed": "Aggiornamento quota non riuscito: {{error}}",
+    "refreshAllSuccess": "Aggiornamento completato, {{count}} account riusciti",
+    "refreshAllPartialFailed": "Aggiornamento completato, {{success}} / {{total}} account riusciti, alcuni non riusciti",
+    "quotaError": {
+      "badge": "Errore quota",
+      "generic": "Aggiornamento quota non riuscito, riprova più tardi",
+      "deactivatedWorkspace": "Workspace disattivato, cambia account o riautorizza"
     }
   },
   "dashboard": {
@@ -1154,5 +1169,9 @@
     "apply": "Applica",
     "inputMinutes": "Inserire i minuti",
     "inputPercent": "Inserire la percentuale"
+  },
+  "privacy": {
+    "hideSensitive": "Nascondi email",
+    "showSensitive": "Mostra email"
   }
 }

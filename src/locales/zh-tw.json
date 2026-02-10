@@ -93,7 +93,13 @@
       "vscodePathSelect": "選擇",
       "vscodePathReset": "重設預設值",
       "antigravityAppPath": "Antigravity 啟動路徑",
-      "antigravityTitle": "Antigravity 啟動"
+      "antigravityTitle": "Antigravity 啟動",
+      "commonTitle": "通用",
+      "antigravitySettingsTitle": "Antigravity 設定",
+      "codexSettingsTitle": "Codex 設定",
+      "githubCopilotSettingsTitle": "GitHub Copilot 設定",
+      "ghcpAutoRefresh": "GitHub Copilot 自動重新整理配額",
+      "ghcpAutoRefreshDesc": "背景更新頻率"
     },
     "network": {
       "apiTitle": "Antigravity Cockpit API",
@@ -767,6 +773,15 @@
           "commandWin": "Windows: taskkill /F /PID <pid>（匹配 CODEX_HOME）"
         }
       }
+    },
+    "refreshSuccess": "配額已重新整理",
+    "refreshFailed": "配額重新整理失敗：{{error}}",
+    "refreshAllSuccess": "重新整理完成，成功 {{count}} 個帳號",
+    "refreshAllPartialFailed": "重新整理完成，成功 {{success}} / {{total}} 個帳號，部分失敗",
+    "quotaError": {
+      "badge": "配額異常",
+      "generic": "配額重新整理失敗，請稍後再試",
+      "deactivatedWorkspace": "工作區已停用，請切換帳號或重新授權"
     }
   },
   "dashboard": {
@@ -1154,5 +1169,9 @@
     "apply": "確定",
     "inputMinutes": "輸入分鐘數",
     "inputPercent": "輸入百分比"
+  },
+  "privacy": {
+    "hideSensitive": "隱藏電子郵件",
+    "showSensitive": "顯示電子郵件"
   }
 }

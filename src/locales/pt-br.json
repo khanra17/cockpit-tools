@@ -93,7 +93,13 @@
       "vscodePathSelect": "Selecionar",
       "vscodePathReset": "Redefinir padrão",
       "antigravityAppPath": "Caminho do app Antigravity",
-      "antigravityTitle": "Inicialização do Antigravity"
+      "antigravityTitle": "Inicialização do Antigravity",
+      "commonTitle": "Geral",
+      "antigravitySettingsTitle": "Configurações do Antigravity",
+      "codexSettingsTitle": "Configurações do Codex",
+      "githubCopilotSettingsTitle": "Configurações do GitHub Copilot",
+      "ghcpAutoRefresh": "Atualização automática de cota do GitHub Copilot",
+      "ghcpAutoRefreshDesc": "Frequência de atualização em segundo plano"
     },
     "network": {
       "apiTitle": "Antigravity Cockpit API",
@@ -767,6 +773,15 @@
           "commandWin": "Windows: taskkill /F /PID <pid> (correspondência com CODEX_HOME)"
         }
       }
+    },
+    "refreshSuccess": "Cota atualizada",
+    "refreshFailed": "Falha ao atualizar a cota: {{error}}",
+    "refreshAllSuccess": "Atualização concluída, {{count}} conta(s) com sucesso",
+    "refreshAllPartialFailed": "Atualização concluída, {{success}} / {{total}} conta(s) com sucesso e algumas falharam",
+    "quotaError": {
+      "badge": "Erro de cota",
+      "generic": "Falha ao atualizar a cota, tente novamente mais tarde",
+      "deactivatedWorkspace": "Workspace desativado, troque de conta ou reautorize"
     }
   },
   "githubCopilot": {
@@ -1154,5 +1169,9 @@
     "apply": "Aplicar",
     "inputMinutes": "Digite os minutos",
     "inputPercent": "Digite a porcentagem"
+  },
+  "privacy": {
+    "hideSensitive": "Ocultar e-mails",
+    "showSensitive": "Mostrar e-mails"
   }
 }

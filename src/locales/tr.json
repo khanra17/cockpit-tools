@@ -93,7 +93,13 @@
       "vscodePathSelect": "Seç",
       "vscodePathReset": "Varsayılana sıfırla",
       "antigravityAppPath": "Antigravity Uygulama Yolu",
-      "antigravityTitle": "Antigravity Başlatma"
+      "antigravityTitle": "Antigravity Başlatma",
+      "commonTitle": "Genel",
+      "antigravitySettingsTitle": "Antigravity Ayarları",
+      "codexSettingsTitle": "Codex Ayarları",
+      "githubCopilotSettingsTitle": "GitHub Copilot Ayarları",
+      "ghcpAutoRefresh": "GitHub Copilot kota otomatik yenileme",
+      "ghcpAutoRefreshDesc": "Arka plan güncelleme sıklığı"
     },
     "network": {
       "apiTitle": "Antigravity Cockpit API",
@@ -767,6 +773,15 @@
           "commandWin": "Windows: taskkill /F /PID <pid> (CODEX_HOME ile eşleşen)"
         }
       }
+    },
+    "refreshSuccess": "Kota yenilendi",
+    "refreshFailed": "Kota yenileme başarısız: {{error}}",
+    "refreshAllSuccess": "Yenileme tamamlandı, {{count}} hesap başarılı",
+    "refreshAllPartialFailed": "Yenileme tamamlandı, {{success}} / {{total}} hesap başarılı, bazıları başarısız",
+    "quotaError": {
+      "badge": "Kota hatası",
+      "generic": "Kota yenileme başarısız, lütfen daha sonra tekrar deneyin",
+      "deactivatedWorkspace": "Çalışma alanı devre dışı, hesap değiştirin veya yeniden yetkilendirin"
     }
   },
   "dashboard": {
@@ -1154,5 +1169,9 @@
     "apply": "Uygula",
     "inputMinutes": "Dakika girin",
     "inputPercent": "Yüzde girin"
+  },
+  "privacy": {
+    "hideSensitive": "E-postaları gizle",
+    "showSensitive": "E-postaları göster"
   }
 }

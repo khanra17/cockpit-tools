@@ -93,7 +93,13 @@
       "vscodePathSelect": "Vybrat",
       "vscodePathReset": "Obnovit výchozí",
       "antigravityAppPath": "Cesta k aplikaci Antigravity",
-      "antigravityTitle": "Spuštění Antigravity"
+      "antigravityTitle": "Spuštění Antigravity",
+      "commonTitle": "Obecné",
+      "antigravitySettingsTitle": "Nastavení Antigravity",
+      "codexSettingsTitle": "Nastavení Codex",
+      "githubCopilotSettingsTitle": "Nastavení GitHub Copilot",
+      "ghcpAutoRefresh": "Automatické obnovení kvóty GitHub Copilot",
+      "ghcpAutoRefreshDesc": "Frekvence aktualizace na pozadí"
     },
     "network": {
       "apiTitle": "Antigravity Cockpit API",
@@ -767,6 +773,15 @@
           "commandWin": "Windows: taskkill /F /PID <pid> (shoda s CODEX_HOME)"
         }
       }
+    },
+    "refreshSuccess": "Kvóta obnovena",
+    "refreshFailed": "Obnovení kvóty selhalo: {{error}}",
+    "refreshAllSuccess": "Obnovení dokončeno, úspěšných účtů: {{count}}",
+    "refreshAllPartialFailed": "Obnovení dokončeno, {{success}} / {{total}} účtů úspěšných, některé selhaly",
+    "quotaError": {
+      "badge": "Chyba kvóty",
+      "generic": "Obnovení kvóty se nezdařilo, zkuste to prosím později",
+      "deactivatedWorkspace": "Pracovní prostor je deaktivovaný, přepněte účet nebo znovu autorizujte"
     }
   },
   "dashboard": {
@@ -1154,5 +1169,9 @@
     "apply": "Použít",
     "inputMinutes": "Zadejte minuty",
     "inputPercent": "Zadejte procento"
+  },
+  "privacy": {
+    "hideSensitive": "Skrýt e-maily",
+    "showSensitive": "Zobrazit e-maily"
   }
 }

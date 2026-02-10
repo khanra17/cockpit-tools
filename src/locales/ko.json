@@ -93,7 +93,13 @@
       "vscodePathSelect": "선택",
       "vscodePathReset": "기본값으로 재설정",
       "antigravityAppPath": "Antigravity 앱 경로",
-      "antigravityTitle": "Antigravity 실행"
+      "antigravityTitle": "Antigravity 실행",
+      "commonTitle": "공통",
+      "antigravitySettingsTitle": "Antigravity 설정",
+      "codexSettingsTitle": "Codex 설정",
+      "githubCopilotSettingsTitle": "GitHub Copilot 설정",
+      "ghcpAutoRefresh": "GitHub Copilot 할당량 자동 새로고침",
+      "ghcpAutoRefreshDesc": "백그라운드 업데이트 주기"
     },
     "network": {
       "apiTitle": "Antigravity Cockpit API",
@@ -767,6 +773,15 @@
           "commandWin": "Windows: taskkill /F /PID <pid> (CODEX_HOME 일치 항목)"
         }
       }
+    },
+    "refreshSuccess": "할당량이 새로고침되었습니다",
+    "refreshFailed": "할당량 새로고침 실패: {{error}}",
+    "refreshAllSuccess": "새로고침 완료, {{count}}개 계정 성공",
+    "refreshAllPartialFailed": "새로고침 완료, {{success}} / {{total}}개 계정 성공, 일부 실패",
+    "quotaError": {
+      "badge": "할당량 오류",
+      "generic": "할당량 새로고침에 실패했습니다. 나중에 다시 시도하세요",
+      "deactivatedWorkspace": "워크스페이스가 비활성화되었습니다. 계정을 전환하거나 다시 인증하세요"
     }
   },
   "dashboard": {
@@ -1154,5 +1169,9 @@
     "apply": "적용",
     "inputMinutes": "분 입력",
     "inputPercent": "백분율 입력"
+  },
+  "privacy": {
+    "hideSensitive": "이메일 숨기기",
+    "showSensitive": "이메일 표시"
   }
 }

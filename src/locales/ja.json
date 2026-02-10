@@ -93,7 +93,13 @@
       "vscodePathSelect": "選択",
       "vscodePathReset": "既定に戻す",
       "antigravityAppPath": "Antigravity アプリのパス",
-      "antigravityTitle": "Antigravity 起動"
+      "antigravityTitle": "Antigravity 起動",
+      "commonTitle": "共通",
+      "antigravitySettingsTitle": "Antigravity 設定",
+      "codexSettingsTitle": "Codex 設定",
+      "githubCopilotSettingsTitle": "GitHub Copilot 設定",
+      "ghcpAutoRefresh": "GitHub Copilot クォータの自動更新",
+      "ghcpAutoRefreshDesc": "バックグラウンド更新頻度"
     },
     "network": {
       "apiTitle": "Antigravity Cockpit API",
@@ -767,6 +773,15 @@
           "commandWin": "Windows: taskkill /F /PID <pid> (CODEX_HOME に一致するもの)"
         }
       }
+    },
+    "refreshSuccess": "クォータを更新しました",
+    "refreshFailed": "クォータの更新に失敗しました: {{error}}",
+    "refreshAllSuccess": "更新完了、{{count}} アカウント成功",
+    "refreshAllPartialFailed": "更新完了、{{success}} / {{total}} アカウント成功、一部失敗",
+    "quotaError": {
+      "badge": "クォータエラー",
+      "generic": "クォータの更新に失敗しました。後でもう一度お試しください",
+      "deactivatedWorkspace": "ワークスペースが無効です。アカウントを切り替えるか再認証してください"
     }
   },
   "dashboard": {
@@ -1154,5 +1169,9 @@
     "apply": "適用",
     "inputMinutes": "分数を入力",
     "inputPercent": "パーセントを入力"
+  },
+  "privacy": {
+    "hideSensitive": "メールを隠す",
+    "showSensitive": "メールを表示"
   }
 }

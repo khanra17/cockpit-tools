@@ -93,7 +93,13 @@
       "vscodePathSelect": "Auswählen",
       "vscodePathReset": "Standard zurücksetzen",
       "antigravityAppPath": "Antigravity-App-Pfad",
-      "antigravityTitle": "Antigravity-Start"
+      "antigravityTitle": "Antigravity-Start",
+      "commonTitle": "Allgemein",
+      "antigravitySettingsTitle": "Antigravity-Einstellungen",
+      "codexSettingsTitle": "Codex-Einstellungen",
+      "githubCopilotSettingsTitle": "GitHub Copilot-Einstellungen",
+      "ghcpAutoRefresh": "GitHub Copilot-Kontingent automatisch aktualisieren",
+      "ghcpAutoRefreshDesc": "Aktualisierungsintervall im Hintergrund"
     },
     "network": {
       "apiTitle": "Antigravity Cockpit API",
@@ -767,6 +773,15 @@
           "commandWin": "Windows: taskkill /F /PID <pid> (Übereinstimmung mit CODEX_HOME)"
         }
       }
+    },
+    "refreshSuccess": "Kontingent aktualisiert",
+    "refreshFailed": "Kontingent-Aktualisierung fehlgeschlagen: {{error}}",
+    "refreshAllSuccess": "Aktualisierung abgeschlossen, {{count}} Konto/Konten erfolgreich",
+    "refreshAllPartialFailed": "Aktualisierung abgeschlossen, {{success}} / {{total}} Konten erfolgreich, einige fehlgeschlagen",
+    "quotaError": {
+      "badge": "Kontingentfehler",
+      "generic": "Kontingent-Aktualisierung fehlgeschlagen, bitte später erneut versuchen",
+      "deactivatedWorkspace": "Workspace ist deaktiviert, bitte Konto wechseln oder neu autorisieren"
     }
   },
   "dashboard": {
@@ -1154,5 +1169,9 @@
     "apply": "Anwenden",
     "inputMinutes": "Minuten eingeben",
     "inputPercent": "Prozentsatz eingeben"
+  },
+  "privacy": {
+    "hideSensitive": "E-Mails ausblenden",
+    "showSensitive": "E-Mails anzeigen"
   }
 }

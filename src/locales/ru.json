@@ -93,7 +93,13 @@
       "vscodePathSelect": "Выбрать",
       "vscodePathReset": "Сбросить по умолчанию",
       "antigravityAppPath": "Путь к приложению Antigravity",
-      "antigravityTitle": "Запуск Antigravity"
+      "antigravityTitle": "Запуск Antigravity",
+      "commonTitle": "Общие",
+      "antigravitySettingsTitle": "Настройки Antigravity",
+      "codexSettingsTitle": "Настройки Codex",
+      "githubCopilotSettingsTitle": "Настройки GitHub Copilot",
+      "ghcpAutoRefresh": "Автообновление квоты GitHub Copilot",
+      "ghcpAutoRefreshDesc": "Частота фонового обновления"
     },
     "network": {
       "apiTitle": "Antigravity Cockpit API",
@@ -767,6 +773,15 @@
           "commandWin": "Windows: taskkill /F /PID <pid> (совпадение по CODEX_HOME)"
         }
       }
+    },
+    "refreshSuccess": "Квота обновлена",
+    "refreshFailed": "Не удалось обновить квоту: {{error}}",
+    "refreshAllSuccess": "Обновление завершено, успешно: {{count}} аккаунт(ов)",
+    "refreshAllPartialFailed": "Обновление завершено, успешно: {{success}} / {{total}}, часть с ошибками",
+    "quotaError": {
+      "badge": "Ошибка квоты",
+      "generic": "Не удалось обновить квоту, попробуйте позже",
+      "deactivatedWorkspace": "Рабочее пространство деактивировано, переключите аккаунт или авторизуйтесь заново"
     }
   },
   "dashboard": {
@@ -1154,5 +1169,9 @@
     "apply": "Применить",
     "inputMinutes": "Введите минуты",
     "inputPercent": "Введите процент"
+  },
+  "privacy": {
+    "hideSensitive": "Скрыть e-mail",
+    "showSensitive": "Показать e-mail"
   }
 }

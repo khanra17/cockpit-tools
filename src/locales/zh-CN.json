@@ -1145,5 +1145,33 @@
       "helpText": "请打开文件夹手动修复或删除该文件，然后重新启动应用。",
       "openFolder": "打开文件夹"
     }
+  },
+  "quickSettings": {
+    "antigravity": {
+      "title": "Antigravity 设置",
+      "appPath": "启动路径"
+    },
+    "codex": {
+      "title": "Codex 设置",
+      "appPath": "启动路径"
+    },
+    "githubCopilot": {
+      "title": "GitHub Copilot 设置",
+      "appPath": "VS Code 路径"
+    },
+    "refreshInterval": "配额自动刷新",
+    "codexRefreshInterval": "配额自动刷新",
+    "ghcpRefreshInterval": "配额自动刷新",
+    "autoSwitch": {
+      "title": "自动切号",
+      "enable": "自动切号",
+      "threshold": "切号阈值",
+      "thresholdDesc": "任意模型配额低于此百分比时触发自动切号",
+      "hint": "当任意模型配额低于阈值时，自动切换到配额最高的账号。"
+    },
+    "customInput": "自定义",
+    "apply": "确定",
+    "inputMinutes": "输入分钟数",
+    "inputPercent": "输入百分比"
   }
 }

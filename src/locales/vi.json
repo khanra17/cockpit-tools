@@ -93,7 +93,13 @@
       "vscodePathSelect": "Chọn",
       "vscodePathReset": "Đặt lại mặc định",
       "antigravityAppPath": "Đường dẫn ứng dụng Antigravity",
-      "antigravityTitle": "Khởi chạy Antigravity"
+      "antigravityTitle": "Khởi chạy Antigravity",
+      "commonTitle": "Chung",
+      "antigravitySettingsTitle": "Cài đặt Antigravity",
+      "codexSettingsTitle": "Cài đặt Codex",
+      "githubCopilotSettingsTitle": "Cài đặt GitHub Copilot",
+      "ghcpAutoRefresh": "Tự động làm mới quota GitHub Copilot",
+      "ghcpAutoRefreshDesc": "Tần suất cập nhật nền"
     },
     "network": {
       "apiTitle": "API Antigravity Cockpit",
@@ -767,6 +773,15 @@
           "commandWin": "Windows: taskkill /F /PID <pid> (khớp với CODEX_HOME)"
         }
       }
+    },
+    "refreshSuccess": "Đã làm mới quota",
+    "refreshFailed": "Làm mới quota thất bại: {{error}}",
+    "refreshAllSuccess": "Làm mới hoàn tất, {{count}} tài khoản thành công",
+    "refreshAllPartialFailed": "Làm mới hoàn tất, {{success}} / {{total}} tài khoản thành công và một số thất bại",
+    "quotaError": {
+      "badge": "Lỗi quota",
+      "generic": "Làm mới quota thất bại, vui lòng thử lại sau",
+      "deactivatedWorkspace": "Workspace đã bị vô hiệu hoá, hãy đổi tài khoản hoặc cấp quyền lại"
     }
   },
   "dashboard": {
@@ -1154,5 +1169,9 @@
     "apply": "Áp dụng",
     "inputMinutes": "Nhập số phút",
     "inputPercent": "Nhập phần trăm"
+  },
+  "privacy": {
+    "hideSensitive": "Ẩn email",
+    "showSensitive": "Hiện email"
   }
 }

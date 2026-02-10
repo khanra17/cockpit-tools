@@ -93,7 +93,13 @@
       "vscodePathSelect": "Wybierz",
       "vscodePathReset": "Przywróć domyślne",
       "antigravityAppPath": "Ścieżka aplikacji Antigravity",
-      "antigravityTitle": "Uruchamianie Antigravity"
+      "antigravityTitle": "Uruchamianie Antigravity",
+      "commonTitle": "Ogólne",
+      "antigravitySettingsTitle": "Ustawienia Antigravity",
+      "codexSettingsTitle": "Ustawienia Codex",
+      "githubCopilotSettingsTitle": "Ustawienia GitHub Copilot",
+      "ghcpAutoRefresh": "Automatyczne odświeżanie limitu GitHub Copilot",
+      "ghcpAutoRefreshDesc": "Częstotliwość aktualizacji w tle"
     },
     "network": {
       "apiTitle": "Antigravity Cockpit API",
@@ -767,6 +773,15 @@
           "commandWin": "Windows: taskkill /F /PID <pid> (dopasowanie do CODEX_HOME)"
         }
       }
+    },
+    "refreshSuccess": "Limit odświeżony",
+    "refreshFailed": "Odświeżenie limitu nie powiodło się: {{error}}",
+    "refreshAllSuccess": "Odświeżanie zakończone, {{count}} kont(a) pomyślnie",
+    "refreshAllPartialFailed": "Odświeżanie zakończone, {{success}} / {{total}} kont pomyślnie, część nieudana",
+    "quotaError": {
+      "badge": "Błąd limitu",
+      "generic": "Odświeżenie limitu nie powiodło się, spróbuj ponownie później",
+      "deactivatedWorkspace": "Obszar roboczy jest wyłączony, przełącz konto lub ponownie autoryzuj"
     }
   },
   "dashboard": {
@@ -1154,5 +1169,9 @@
     "apply": "Zastosuj",
     "inputMinutes": "Wpisz minuty",
     "inputPercent": "Wpisz procent"
+  },
+  "privacy": {
+    "hideSensitive": "Ukryj e-maile",
+    "showSensitive": "Pokaż e-maile"
   }
 }

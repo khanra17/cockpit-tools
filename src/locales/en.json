@@ -1145,5 +1145,33 @@
       "helpText": "Please open the folder to repair manually or delete the file, then restart the application.",
       "openFolder": "Open Folder"
     }
+  },
+  "quickSettings": {
+    "antigravity": {
+      "title": "Antigravity Settings",
+      "appPath": "Launch Path"
+    },
+    "codex": {
+      "title": "Codex Settings",
+      "appPath": "Launch Path"
+    },
+    "githubCopilot": {
+      "title": "GitHub Copilot Settings",
+      "appPath": "VS Code Path"
+    },
+    "refreshInterval": "Quota Auto Refresh",
+    "codexRefreshInterval": "Quota Auto Refresh",
+    "ghcpRefreshInterval": "Quota Auto Refresh",
+    "autoSwitch": {
+      "title": "Auto Switch",
+      "enable": "Enable Auto Switch",
+      "threshold": "Switch Threshold",
+      "thresholdDesc": "Auto switch when any model quota falls below this percentage",
+      "hint": "Automatically switch to the account with the highest quota when any model quota is below the threshold."
+    },
+    "customInput": "Custom",
+    "apply": "Apply",
+    "inputMinutes": "Enter minutes",
+    "inputPercent": "Enter percentage"
   }
 }

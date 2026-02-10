@@ -93,7 +93,13 @@
       "vscodePathSelect": "Sélectionner",
       "vscodePathReset": "Réinitialiser par défaut",
       "antigravityAppPath": "Chemin de l’app Antigravity",
-      "antigravityTitle": "Lancement d’Antigravity"
+      "antigravityTitle": "Lancement d’Antigravity",
+      "commonTitle": "Général",
+      "antigravitySettingsTitle": "Paramètres Antigravity",
+      "codexSettingsTitle": "Paramètres Codex",
+      "githubCopilotSettingsTitle": "Paramètres GitHub Copilot",
+      "ghcpAutoRefresh": "Actualisation automatique du quota GitHub Copilot",
+      "ghcpAutoRefreshDesc": "Fréquence de mise à jour en arrière-plan"
     },
     "network": {
       "apiTitle": "Antigravity Cockpit API",
@@ -767,6 +773,15 @@
           "commandWin": "Windows : taskkill /F /PID <pid> (correspondance CODEX_HOME)"
         }
       }
+    },
+    "refreshSuccess": "Quota actualisé",
+    "refreshFailed": "Échec de l’actualisation du quota : {{error}}",
+    "refreshAllSuccess": "Actualisation terminée, {{count}} compte(s) réussi(s)",
+    "refreshAllPartialFailed": "Actualisation terminée, {{success}} / {{total}} compte(s) réussi(s), certains ont échoué",
+    "quotaError": {
+      "badge": "Erreur de quota",
+      "generic": "Échec de l’actualisation du quota, veuillez réessayer plus tard",
+      "deactivatedWorkspace": "L’espace de travail est désactivé, changez de compte ou réautorisez"
     }
   },
   "dashboard": {
@@ -1154,5 +1169,9 @@
     "apply": "Appliquer",
     "inputMinutes": "Entrer les minutes",
     "inputPercent": "Entrer le pourcentage"
+  },
+  "privacy": {
+    "hideSensitive": "Masquer les e-mails",
+    "showSensitive": "Afficher les e-mails"
   }
 }
