@@ -11,6 +11,9 @@ pub struct TokenData {
     /// Google Cloud 项目ID，用于 API 请求标识
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_id: Option<String>,
+    /// 对齐 Antigravity.app 的 CloudCode 域名选择逻辑（GCP ToS 账号走 prod）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub is_gcp_tos: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
 }
@@ -33,7 +36,13 @@ impl TokenData {
             token_type: "Bearer".to_string(),
             email,
             project_id,
+            is_gcp_tos: None,
             session_id,
         }
+    }
+
+    pub fn with_is_gcp_tos(mut self, is_gcp_tos: Option<bool>) -> Self {
+        self.is_gcp_tos = is_gcp_tos;
+        self
     }
 }

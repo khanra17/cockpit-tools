@@ -17,14 +17,6 @@ interface PlatformOverviewTabsHeaderProps {
 interface PlatformOverviewConfig {
   titleKey: string;
   titleDefault: string;
-  overviewTabKey: string;
-  overviewTabDefault: string;
-  instancesTabKey: string;
-  instancesTabDefault: string;
-  overviewSubtitleKey: string;
-  overviewSubtitleDefault: string;
-  instancesSubtitleKey: string;
-  instancesSubtitleDefault: string;
   overviewIcon: ReactNode;
 }
 
@@ -38,53 +30,21 @@ const CONFIGS: Record<PlatformOverviewHeaderId, PlatformOverviewConfig> = {
   codex: {
     titleKey: 'codex.title',
     titleDefault: 'Codex 账号管理',
-    overviewTabKey: 'overview.title',
-    overviewTabDefault: '账号总览',
-    instancesTabKey: 'instances.title',
-    instancesTabDefault: '多开实例',
-    overviewSubtitleKey: 'codex.subtitle',
-    overviewSubtitleDefault: '实时监控所有Codex账号的模型配额状态。',
-    instancesSubtitleKey: 'codex.instances.subtitle',
-    instancesSubtitleDefault: '多实例独立配置，多账号并行运行。',
     overviewIcon: <CodexIcon className="tab-icon" />,
   },
   'github-copilot': {
     titleKey: 'githubCopilot.title',
     titleDefault: 'GitHub Copilot 账号管理',
-    overviewTabKey: 'common.shared.overview.title',
-    overviewTabDefault: '账号总览',
-    instancesTabKey: 'common.shared.instances.title',
-    instancesTabDefault: '多开实例',
-    overviewSubtitleKey: 'common.shared.subtitle',
-    overviewSubtitleDefault: '实时监控所有账号的配额状态。',
-    instancesSubtitleKey: 'common.shared.instances.subtitle',
-    instancesSubtitleDefault: '多实例独立配置，多账号并行运行。',
     overviewIcon: <Github className="tab-icon" />,
   },
   windsurf: {
     titleKey: 'windsurf.title',
     titleDefault: 'Windsurf 账号管理',
-    overviewTabKey: 'common.shared.overview.title',
-    overviewTabDefault: '账号总览',
-    instancesTabKey: 'common.shared.instances.title',
-    instancesTabDefault: '多开实例',
-    overviewSubtitleKey: 'common.shared.subtitle',
-    overviewSubtitleDefault: '实时监控所有账号的配额状态。',
-    instancesSubtitleKey: 'common.shared.instances.subtitle',
-    instancesSubtitleDefault: '多实例独立配置，多账号并行运行。',
     overviewIcon: <WindsurfIcon className="tab-icon" />,
   },
   kiro: {
     titleKey: 'kiro.title',
     titleDefault: 'Kiro 账号管理',
-    overviewTabKey: 'common.shared.overview.title',
-    overviewTabDefault: '账号总览',
-    instancesTabKey: 'common.shared.instances.title',
-    instancesTabDefault: '多开实例',
-    overviewSubtitleKey: 'common.shared.subtitle',
-    overviewSubtitleDefault: '实时监控所有账号的配额状态。',
-    instancesSubtitleKey: 'common.shared.instances.subtitle',
-    instancesSubtitleDefault: '多实例独立配置，多账号并行运行。',
     overviewIcon: <KiroIcon className="tab-icon" />,
   },
 };
@@ -99,20 +59,22 @@ export function PlatformOverviewTabsHeader({
   const tabs: TabSpec[] = [
     {
       key: 'overview',
-      label: config.overviewTabDefault,
+      // Reuse Antigravity tab translations across platform account pages.
+      label: t('overview.title', '账号总览'),
       icon: config.overviewIcon,
     },
     {
       key: 'instances',
-      label: config.instancesTabDefault,
+      // Reuse Antigravity tab translations across platform account pages.
+      label: t('instances.title', '多开实例'),
       icon: <Layers className="tab-icon" />,
     },
   ];
 
   const subtitle =
     active === 'instances'
-      ? t(config.instancesSubtitleKey, config.instancesSubtitleDefault)
-      : t(config.overviewSubtitleKey, config.overviewSubtitleDefault);
+      ? t('instances.subtitle', '多实例独立配置，多账号并行运行。')
+      : t('overview.subtitle', '实时监控所有账号的配额状态。');
 
   return (
     <>

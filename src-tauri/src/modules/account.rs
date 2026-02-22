@@ -1117,8 +1117,8 @@ pub async fn fetch_quota_with_retry(
         let _ = upsert_account(account.email.clone(), account.name.clone(), token.clone());
     }
 
-    let result =
-        modules::quota::fetch_quota(&account.token.access_token, &account.email, skip_cache).await;
+    let result = modules::quota::fetch_quota_for_token(&account.token, &account.email, skip_cache)
+        .await;
     match result {
         Ok(payload) => {
             account.quota_error = payload.error.map(|err| QuotaErrorInfo {

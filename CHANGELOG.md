@@ -7,6 +7,12 @@ All notable changes to Cockpit Tools will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
+## [0.8.11] - 2026-02-22
+
+### Changed
+- **Antigravity quota backend fetch flow aligned with Antigravity.app**: Unified Cloud Code base URL selection for `loadCodeAssist` / `onboardUser` / `fetchAvailableModels` (Antigravity-style routing), passed `cloudaicompanionProject` through backend requests, and switched `onboardUser` to operation polling (`POST` + `GET`, 500ms poll interval). Local quota API cache is still retained, while the pre-cache backend flow is aligned.
+
+---
 ## [0.8.10] - 2026-02-22
 
 ### Added

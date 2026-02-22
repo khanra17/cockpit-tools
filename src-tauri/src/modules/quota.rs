@@ -1,4 +1,4 @@
-use crate::models::QuotaData;
+use crate::models::{QuotaData, TokenData};
 use crate::modules;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -7,21 +7,82 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::PathBuf;
 
-const QUOTA_API_URL: &str = "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels";
-const CLOUD_CODE_BASE_URLS: [&str; 3] = [
-    "https://daily-cloudcode-pa.googleapis.com",
-    "https://cloudcode-pa.googleapis.com",
-    "https://daily-cloudcode-pa.sandbox.googleapis.com",
-];
+const CLOUD_CODE_DAILY_BASE_URL: &str = "https://daily-cloudcode-pa.googleapis.com";
+const CLOUD_CODE_PROD_BASE_URL: &str = "https://cloudcode-pa.googleapis.com";
+const CLOUD_CODE_AUTOPUSH_SANDBOX_BASE_URL: &str =
+    "https://autopush-cloudcode-pa.sandbox.googleapis.com";
+const LOAD_CODE_ASSIST_PATH: &str = "v1internal:loadCodeAssist";
+const ONBOARD_USER_PATH: &str = "v1internal:onboardUser";
+const FETCH_AVAILABLE_MODELS_PATH: &str = "v1internal:fetchAvailableModels";
 const USER_AGENT: &str = "antigravity";
 const DEFAULT_ATTEMPTS: usize = 2;
 const BACKOFF_BASE_MS: u64 = 500;
 const BACKOFF_MAX_MS: u64 = 4000;
-const ONBOARD_ATTEMPTS: usize = 5;
-const ONBOARD_DELAY_MS: u64 = 2000;
+const ONBOARD_POLL_DELAY_MS: u64 = 500;
 const API_CACHE_DIR: &str = "cache/quota_api_v1_desktop";
 const API_CACHE_VERSION: u8 = 1;
+#[allow(dead_code)]
 const API_CACHE_TTL_MS: i64 = 60_000;
+
+#[derive(Debug, Clone, Default)]
+pub struct QuotaCloudCodeContext {
+    pub preferred_project_id: Option<String>,
+    pub is_gcp_tos: bool,
+}
+
+impl QuotaCloudCodeContext {
+    pub fn from_token(token: &TokenData) -> Self {
+        Self {
+            preferred_project_id: token.project_id.clone(),
+            is_gcp_tos: token.is_gcp_tos.unwrap_or(false),
+        }
+    }
+}
+
+fn env_var_trimmed(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn env_bool(name: &str) -> bool {
+    match env_var_trimmed(name)
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "1" | "true" | "yes" | "on" => true,
+        _ => false,
+    }
+}
+
+fn env_quality_is_insider_or_dev() -> bool {
+    matches!(
+        env_var_trimmed("ANTIGRAVITY_APP_QUALITY")
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str(),
+        "insider" | "dev"
+    )
+}
+
+fn resolve_cloud_code_base_url(ctx: &QuotaCloudCodeContext) -> String {
+    // 与 Antigravity.app 的 IYs(...) 选择顺序保持一致：override > gcpTos > internal(insider/dev) > daily
+    if let Some(override_url) = env_var_trimmed("ANTIGRAVITY_CLOUD_CODE_URL_OVERRIDE") {
+        return override_url;
+    }
+
+    if ctx.is_gcp_tos {
+        return CLOUD_CODE_PROD_BASE_URL.to_string();
+    }
+
+    if env_bool("ANTIGRAVITY_IS_GOOGLE_INTERNAL") && env_quality_is_insider_or_dev() {
+        return CLOUD_CODE_AUTOPUSH_SANDBOX_BASE_URL.to_string();
+    }
+
+    CLOUD_CODE_DAILY_BASE_URL.to_string()
+}
 
 fn truncate_log_text(text: &str, max_len: usize) -> String {
     if text.chars().count() <= max_len {
@@ -80,6 +141,7 @@ struct QuotaApiCacheRecord {
     payload: serde_json::Value,
 }
 
+#[allow(dead_code)]
 fn read_api_cache(source: &str, email: &str) -> Option<QuotaApiCacheRecord> {
     let path = api_cache_path(source, email).ok()?;
     let content = fs::read_to_string(path).ok()?;
@@ -93,11 +155,13 @@ fn read_api_cache(source: &str, email: &str) -> Option<QuotaApiCacheRecord> {
     Some(record)
 }
 
+#[allow(dead_code)]
 fn is_api_cache_valid(record: &QuotaApiCacheRecord) -> bool {
     let now_ms = Utc::now().timestamp_millis();
     now_ms - record.updated_at < API_CACHE_TTL_MS
 }
 
+#[allow(dead_code)]
 fn api_cache_age_secs(record: &QuotaApiCacheRecord) -> i64 {
     let now_ms = Utc::now().timestamp_millis();
     std::cmp::max(0, (now_ms - record.updated_at) / 1000)
@@ -192,6 +256,7 @@ struct Tier {
 
 #[derive(Debug, Deserialize)]
 struct OnboardUserResponse {
+    name: Option<String>,
     done: Option<bool>,
     response: Option<OnboardResponse>,
 }
@@ -214,6 +279,19 @@ fn build_metadata_payload() -> serde_json::Value {
             "pluginType": "GEMINI"
         }
     })
+}
+
+fn build_load_code_assist_payload(project_id: Option<&str>) -> serde_json::Value {
+    let mut payload = build_metadata_payload();
+    if let Some(project_id) = project_id.filter(|id| !id.trim().is_empty()) {
+        if let Some(obj) = payload.as_object_mut() {
+            obj.insert(
+                "cloudaicompanionProject".to_string(),
+                serde_json::Value::String(project_id.to_string()),
+            );
+        }
+    }
+    payload
 }
 
 fn extract_project_id(value: &serde_json::Value) -> Option<String> {
@@ -263,8 +341,9 @@ async fn try_onboard_user(
     base_url: &str,
     access_token: &str,
     tier_id: &str,
+    project_id: Option<&str>,
 ) -> Result<Option<String>, String> {
-    let payload = json!({
+    let mut payload = json!({
         "tierId": tier_id,
         "metadata": {
             "ideType": "ANTIGRAVITY",
@@ -272,30 +351,38 @@ async fn try_onboard_user(
             "pluginType": "GEMINI"
         }
     });
-
-    for _ in 0..ONBOARD_ATTEMPTS {
-        let response = client
-            .post(format!("{}/v1internal:onboardUser", base_url))
-            .bearer_auth(access_token)
-            .header(reqwest::header::CONTENT_TYPE, "application/json")
-            .header(reqwest::header::USER_AGENT, USER_AGENT)
-            .header(reqwest::header::ACCEPT_ENCODING, "gzip")
-            .json(&payload)
-            .send()
-            .await
-            .map_err(|e| format!("onboardUser 网络错误: {}", e))?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response.text().await.unwrap_or_default();
-            return Err(format!("onboardUser 失败: {} - {}", status, text));
+    if let Some(project_id) = project_id.filter(|id| !id.trim().is_empty()) {
+        if let Some(obj) = payload.as_object_mut() {
+            obj.insert(
+                "cloudaicompanionProject".to_string(),
+                serde_json::Value::String(project_id.to_string()),
+            );
         }
+    }
 
-        let data = response
-            .json::<OnboardUserResponse>()
-            .await
-            .map_err(|e| format!("onboardUser 解析失败: {}", e))?;
+    let response = client
+        .post(format!("{}/{}", base_url, ONBOARD_USER_PATH))
+        .bearer_auth(access_token)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .header(reqwest::header::USER_AGENT, USER_AGENT)
+        .header(reqwest::header::ACCEPT_ENCODING, "gzip")
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("onboardUser 网络错误: {}", e))?;
 
+    if !response.status().is_success() {
+        let status = response.status();
+        let text = response.text().await.unwrap_or_default();
+        return Err(format!("onboardUser 失败: {} - {}", status, text));
+    }
+
+    let mut data = response
+        .json::<OnboardUserResponse>()
+        .await
+        .map_err(|e| format!("onboardUser 解析失败: {}", e))?;
+
+    loop {
         if data.done.unwrap_or(false) {
             if let Some(project) = data.response.and_then(|resp| resp.project) {
                 return Ok(extract_project_id(&project));
@@ -303,141 +390,173 @@ async fn try_onboard_user(
             return Ok(None);
         }
 
-        tokio::time::sleep(std::time::Duration::from_millis(ONBOARD_DELAY_MS)).await;
-    }
+        let op_name = data
+            .name
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| "onboardUser 未完成但缺少 operation name".to_string())?;
 
-    Ok(None)
+        let poll_response = client
+            .get(format!("{}/v1internal/{}", base_url, op_name))
+            .bearer_auth(access_token)
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .header(reqwest::header::USER_AGENT, USER_AGENT)
+            .header(reqwest::header::ACCEPT_ENCODING, "gzip")
+            .send()
+            .await
+            .map_err(|e| format!("onboardUser 轮询网络错误: {}", e))?;
+
+        if !poll_response.status().is_success() {
+            let status = poll_response.status();
+            let text = poll_response.text().await.unwrap_or_default();
+            return Err(format!("onboardUser 轮询失败: {} - {}", status, text));
+        }
+
+        data = poll_response
+            .json::<OnboardUserResponse>()
+            .await
+            .map_err(|e| format!("onboardUser 轮询解析失败: {}", e))?;
+
+        tokio::time::sleep(std::time::Duration::from_millis(ONBOARD_POLL_DELAY_MS)).await;
+    }
 }
 
-/// 获取项目 ID 和订阅类型
+/// 获取项目 ID 和订阅类型（兼容旧调用，默认按普通账号规则选择 daily 域名）
+#[allow(dead_code)]
 pub async fn fetch_project_id(access_token: &str, email: &str) -> (Option<String>, Option<String>) {
+    fetch_project_id_with_context(access_token, email, &QuotaCloudCodeContext::default()).await
+}
+
+/// 获取项目 ID 和订阅类型（优先使用 token 中的 project_id / is_gcp_tos 上下文）
+pub async fn fetch_project_id_for_token(
+    token: &TokenData,
+    email: &str,
+) -> (Option<String>, Option<String>) {
+    let ctx = QuotaCloudCodeContext::from_token(token);
+    fetch_project_id_with_context(&token.access_token, email, &ctx).await
+}
+
+pub async fn fetch_project_id_with_context(
+    access_token: &str,
+    email: &str,
+    ctx: &QuotaCloudCodeContext,
+) -> (Option<String>, Option<String>) {
     let client = create_client();
     let mut subscription_tier: Option<String> = None;
     let mut allowed_tiers: Vec<AllowedTier> = Vec::new();
     let mut last_error: Option<String> = None;
-    let meta = build_metadata_payload();
+    let base_url = resolve_cloud_code_base_url(ctx);
+    let preferred_project_id = ctx
+        .preferred_project_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
 
-    for base in CLOUD_CODE_BASE_URLS {
-        for attempt in 1..=DEFAULT_ATTEMPTS {
-            let response = client
-                .post(format!("{}/v1internal:loadCodeAssist", base))
-                .bearer_auth(access_token)
-                .header(reqwest::header::CONTENT_TYPE, "application/json")
-                .header(reqwest::header::USER_AGENT, USER_AGENT)
-                .header(reqwest::header::ACCEPT_ENCODING, "gzip")
-                .json(&meta)
-                .send()
-                .await;
+    for attempt in 1..=DEFAULT_ATTEMPTS {
+        let response = client
+            .post(format!("{}/{}", base_url, LOAD_CODE_ASSIST_PATH))
+            .bearer_auth(access_token)
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .header(reqwest::header::USER_AGENT, USER_AGENT)
+            .header(reqwest::header::ACCEPT_ENCODING, "gzip")
+            .json(&build_load_code_assist_payload(preferred_project_id.as_deref()))
+            .send()
+            .await;
 
-            match response {
-                Ok(res) => {
-                    let status = res.status();
-                    let headers = res.headers().clone();
-                    if status.is_success() {
-                        let text_result = res.text().await;
-                        match text_result {
-                            Ok(text) => match serde_json::from_str::<LoadProjectResponse>(&text) {
-                                Ok(data) => {
-                                    let paid_tier_id =
-                                        data.paid_tier.as_ref().and_then(|tier| tier.id.clone());
-                                    let current_tier_id = data
-                                        .current_tier
-                                        .as_ref()
-                                        .and_then(|tier| tier.id.clone());
-                                    subscription_tier =
-                                        paid_tier_id.clone().or(current_tier_id.clone());
+        match response {
+            Ok(res) => {
+                let status = res.status();
+                let headers = res.headers().clone();
+                if status.is_success() {
+                    let text_result = res.text().await;
+                    match text_result {
+                        Ok(text) => match serde_json::from_str::<LoadProjectResponse>(&text) {
+                            Ok(data) => {
+                                let paid_tier_id =
+                                    data.paid_tier.as_ref().and_then(|tier| tier.id.clone());
+                                let current_tier_id = data
+                                    .current_tier
+                                    .as_ref()
+                                    .and_then(|tier| tier.id.clone());
+                                subscription_tier = paid_tier_id.clone().or(current_tier_id.clone());
 
-                                    if subscription_tier.is_some() {
-                                        log_subscription_tier_result(
-                                            email,
-                                            subscription_tier.as_ref(),
-                                            "loadCodeAssist 正常返回",
-                                        );
-                                    } else {
-                                        let allowed_tier_preview = data
-                                            .allowed_tiers
-                                            .as_ref()
-                                            .map(|tiers| {
-                                                tiers
-                                                    .iter()
-                                                    .filter_map(|tier| tier.id.as_deref())
-                                                    .collect::<Vec<_>>()
-                                                    .join(",")
-                                            })
-                                            .unwrap_or_else(|| "-".to_string());
-                                        let reason = format!(
-                                            "loadCodeAssist 成功但无 tier: paidTier={:?}, currentTier={:?}, allowedTiers=[{}], hasProject={}",
-                                            paid_tier_id,
-                                            current_tier_id,
-                                            allowed_tier_preview,
-                                            data.project.is_some()
-                                        );
-                                        log_subscription_tier_result(
-                                            email,
-                                            subscription_tier.as_ref(),
-                                            &reason,
-                                        );
-                                    }
-
-                                    if let Some(project) = data.project {
-                                        if let Some(project_id) = extract_project_id(&project) {
-                                            return (Some(project_id), subscription_tier);
-                                        }
-                                    }
-
-                                    if let Some(tiers) = data.allowed_tiers {
-                                        allowed_tiers = tiers;
-                                    }
-
-                                    let onboard_tier = pick_onboard_tier(&allowed_tiers)
-                                        .or_else(|| subscription_tier.clone());
-                                    if let Some(tier_id) = onboard_tier {
-                                        match try_onboard_user(
-                                            &client,
-                                            base,
-                                            access_token,
-                                            &tier_id,
-                                        )
-                                        .await
-                                        {
-                                            Ok(project_id) => {
-                                                if let Some(project_id) = project_id {
-                                                    return (Some(project_id), subscription_tier);
-                                                }
-                                            }
-                                            Err(err) => {
-                                                crate::modules::logger::log_warn(&format!(
-                                                    "⚠️ [{}] onboardUser 失败: {}",
-                                                    email, err
-                                                ));
-                                            }
-                                        }
-                                    }
-
-                                    return (None, subscription_tier);
-                                }
-                                Err(err) => {
-                                    last_error = Some(format!("loadCodeAssist 解析失败: {}", err));
-                                    let header_info = format!(
-                                        "status={}, content-type={}, content-encoding={}, content-length={}",
-                                        status,
-                                        header_value(&headers, reqwest::header::CONTENT_TYPE),
-                                        header_value(&headers, reqwest::header::CONTENT_ENCODING),
-                                        header_value(&headers, reqwest::header::CONTENT_LENGTH)
-                                    );
-                                    crate::modules::logger::log_error(&format!(
-                                        "❌ [{}] loadCodeAssist 解析失败: {}, {}",
-                                        email, err, header_info
-                                    ));
-                                    crate::modules::logger::log_error(&format!(
-                                        "❌ [{}] loadCodeAssist 原始响应: {}",
+                                if subscription_tier.is_some() {
+                                    log_subscription_tier_result(
                                         email,
-                                        truncate_log_text(&text, 2000)
-                                    ));
+                                        subscription_tier.as_ref(),
+                                        "loadCodeAssist 正常返回",
+                                    );
+                                } else {
+                                    let allowed_tier_preview = data
+                                        .allowed_tiers
+                                        .as_ref()
+                                        .map(|tiers| {
+                                            tiers
+                                                .iter()
+                                                .filter_map(|tier| tier.id.as_deref())
+                                                .collect::<Vec<_>>()
+                                                .join(",")
+                                        })
+                                        .unwrap_or_else(|| "-".to_string());
+                                    let reason = format!(
+                                        "loadCodeAssist 成功但无 tier: paidTier={:?}, currentTier={:?}, allowedTiers=[{}], hasProject={}",
+                                        paid_tier_id,
+                                        current_tier_id,
+                                        allowed_tier_preview,
+                                        data.project.is_some()
+                                    );
+                                    log_subscription_tier_result(
+                                        email,
+                                        subscription_tier.as_ref(),
+                                        &reason,
+                                    );
                                 }
-                            },
+
+                                let response_project_id =
+                                    data.project.as_ref().and_then(extract_project_id);
+                                if let Some(project_id) = response_project_id.clone() {
+                                    return (Some(project_id), subscription_tier);
+                                }
+
+                                if let Some(tiers) = data.allowed_tiers {
+                                    allowed_tiers = tiers;
+                                }
+
+                                let onboard_tier = pick_onboard_tier(&allowed_tiers)
+                                    .or_else(|| subscription_tier.clone());
+                                if let Some(tier_id) = onboard_tier {
+                                    let onboard_project_hint = preferred_project_id
+                                        .as_deref()
+                                        .or(response_project_id.as_deref());
+                                    match try_onboard_user(
+                                        &client,
+                                        &base_url,
+                                        access_token,
+                                        &tier_id,
+                                        onboard_project_hint,
+                                    )
+                                    .await
+                                    {
+                                        Ok(project_id) => {
+                                            if let Some(project_id) = project_id {
+                                                return (Some(project_id), subscription_tier);
+                                            }
+                                        }
+                                        Err(err) => {
+                                            crate::modules::logger::log_warn(&format!(
+                                                "⚠️ [{}] onboardUser 失败: {}",
+                                                email, err
+                                            ));
+                                        }
+                                    }
+                                }
+
+                                return (None, subscription_tier);
+                            }
                             Err(err) => {
-                                last_error = Some(format!("loadCodeAssist 读取失败: {}", err));
+                                last_error = Some(format!("loadCodeAssist 解析失败: {}", err));
                                 let header_info = format!(
                                     "status={}, content-type={}, content-encoding={}, content-length={}",
                                     status,
@@ -446,74 +565,85 @@ pub async fn fetch_project_id(access_token: &str, email: &str) -> (Option<String
                                     header_value(&headers, reqwest::header::CONTENT_LENGTH)
                                 );
                                 crate::modules::logger::log_error(&format!(
-                                    "❌ [{}] loadCodeAssist 响应读取失败: {}, {}",
+                                    "❌ [{}] loadCodeAssist 解析失败: {}, {}",
                                     email, err, header_info
                                 ));
+                                crate::modules::logger::log_error(&format!(
+                                    "❌ [{}] loadCodeAssist 原始响应: {}",
+                                    email,
+                                    truncate_log_text(&text, 2000)
+                                ));
                             }
-                        }
-                    } else if status == reqwest::StatusCode::UNAUTHORIZED {
-                        let text = res.text().await.unwrap_or_default();
-                        let reason = format!(
-                            "loadCodeAssist 返回 401 Unauthorized, base={}, attempt={}/{}, body={}",
-                            base,
-                            attempt,
-                            DEFAULT_ATTEMPTS,
-                            truncate_log_text(&text, 1000)
-                        );
-                        log_subscription_tier_result(
-                            email,
-                            subscription_tier.as_ref(),
-                            &reason,
-                        );
-                        return (None, subscription_tier);
-                    } else if status == reqwest::StatusCode::FORBIDDEN {
-                        let text = res.text().await.unwrap_or_default();
-                        let reason = format!(
-                            "loadCodeAssist 返回 403 Forbidden, base={}, attempt={}/{}, body={}",
-                            base,
-                            attempt,
-                            DEFAULT_ATTEMPTS,
-                            truncate_log_text(&text, 1000)
-                        );
-                        log_subscription_tier_result(
-                            email,
-                            subscription_tier.as_ref(),
-                            &reason,
-                        );
-                        return (None, subscription_tier);
-                    } else {
-                        let text = res.text().await.unwrap_or_default();
-                        let retryable = status == reqwest::StatusCode::TOO_MANY_REQUESTS
-                            || status.as_u16() >= 500;
-                        last_error = Some(format!(
-                            "loadCodeAssist 失败: status={}, base={}, attempt={}/{}, body={}",
-                            status,
-                            base,
-                            attempt,
-                            DEFAULT_ATTEMPTS,
-                            truncate_log_text(&text, 1000)
-                        ));
-                        if retryable && attempt < DEFAULT_ATTEMPTS {
-                            let delay = get_backoff_delay_ms(attempt + 1);
-                            if delay > 0 {
-                                tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
-                            }
-                            continue;
+                        },
+                        Err(err) => {
+                            last_error = Some(format!("loadCodeAssist 读取失败: {}", err));
+                            let header_info = format!(
+                                "status={}, content-type={}, content-encoding={}, content-length={}",
+                                status,
+                                header_value(&headers, reqwest::header::CONTENT_TYPE),
+                                header_value(&headers, reqwest::header::CONTENT_ENCODING),
+                                header_value(&headers, reqwest::header::CONTENT_LENGTH)
+                            );
+                            crate::modules::logger::log_error(&format!(
+                                "❌ [{}] loadCodeAssist 响应读取失败: {}, {}",
+                                email, err, header_info
+                            ));
                         }
                     }
-                }
-                Err(e) => {
+                } else if status == reqwest::StatusCode::UNAUTHORIZED {
+                    let text = res.text().await.unwrap_or_default();
+                    let reason = format!(
+                        "loadCodeAssist 返回 401 Unauthorized, base={}, attempt={}/{}, body={}",
+                        base_url,
+                        attempt,
+                        DEFAULT_ATTEMPTS,
+                        truncate_log_text(&text, 1000)
+                    );
+                    log_subscription_tier_result(email, subscription_tier.as_ref(), &reason);
+                    return (None, subscription_tier);
+                } else if status == reqwest::StatusCode::FORBIDDEN {
+                    let text = res.text().await.unwrap_or_default();
+                    let reason = format!(
+                        "loadCodeAssist 返回 403 Forbidden, base={}, attempt={}/{}, body={}",
+                        base_url,
+                        attempt,
+                        DEFAULT_ATTEMPTS,
+                        truncate_log_text(&text, 1000)
+                    );
+                    log_subscription_tier_result(email, subscription_tier.as_ref(), &reason);
+                    return (None, subscription_tier);
+                } else {
+                    let text = res.text().await.unwrap_or_default();
+                    let retryable =
+                        status == reqwest::StatusCode::TOO_MANY_REQUESTS || status.as_u16() >= 500;
                     last_error = Some(format!(
-                        "loadCodeAssist 网络错误: base={}, attempt={}/{}, error={}",
-                        base, attempt, DEFAULT_ATTEMPTS, e
+                        "loadCodeAssist 失败: status={}, base={}, attempt={}/{}, body={}",
+                        status,
+                        base_url,
+                        attempt,
+                        DEFAULT_ATTEMPTS,
+                        truncate_log_text(&text, 1000)
                     ));
-                    if attempt < DEFAULT_ATTEMPTS {
+                    if retryable && attempt < DEFAULT_ATTEMPTS {
                         let delay = get_backoff_delay_ms(attempt + 1);
                         if delay > 0 {
                             tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
                         }
                         continue;
                     }
+                }
+            }
+            Err(e) => {
+                last_error = Some(format!(
+                    "loadCodeAssist 网络错误: base={}, attempt={}/{}, error={}",
+                    base_url, attempt, DEFAULT_ATTEMPTS, e
+                ));
+                if attempt < DEFAULT_ATTEMPTS {
+                    let delay = get_backoff_delay_ms(attempt + 1);
+                    if delay > 0 {
+                        tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+                    }
+                    continue;
                 }
             }
         }
@@ -529,17 +659,72 @@ pub async fn fetch_project_id(access_token: &str, email: &str) -> (Option<String
     (None, subscription_tier)
 }
 
-/// 查询账号配额
+fn build_quota_data_from_response(
+    quota_response: QuotaResponse,
+    subscription_tier: Option<String>,
+) -> QuotaData {
+    let mut quota_data = QuotaData::new();
+
+    for (name, info) in quota_response.models {
+        let display_name = info
+            .display_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string);
+        if let Some(quota_info) = info.quota_info {
+            let percentage = quota_info
+                .remaining_fraction
+                .map(|f| (f * 100.0) as i32)
+                .unwrap_or(0);
+            let reset_time = quota_info.reset_time.unwrap_or_default();
+            if name.contains("gemini") || name.contains("claude") {
+                quota_data.add_model(name, display_name, percentage, reset_time);
+            }
+        }
+    }
+
+    quota_data.subscription_tier = subscription_tier;
+    quota_data
+}
+
+pub async fn fetch_quota_for_token(
+    token: &TokenData,
+    email: &str,
+    skip_cache: bool,
+) -> crate::error::AppResult<QuotaFetchResult> {
+    let ctx = QuotaCloudCodeContext::from_token(token);
+    fetch_quota_with_context(&token.access_token, email, skip_cache, &ctx).await
+}
+
+/// 查询账号配额（兼容旧调用，默认按普通账号规则选择 daily 域名）
 /// skip_cache: 是否跳过缓存，单个账号刷新应传 true，批量刷新传 false
+#[allow(dead_code)]
 pub async fn fetch_quota(
     access_token: &str,
     email: &str,
     skip_cache: bool,
 ) -> crate::error::AppResult<QuotaFetchResult> {
+    fetch_quota_with_context(access_token, email, skip_cache, &QuotaCloudCodeContext::default())
+        .await
+}
+
+pub async fn fetch_quota_with_context(
+    access_token: &str,
+    email: &str,
+    skip_cache: bool,
+    ctx: &QuotaCloudCodeContext,
+) -> crate::error::AppResult<QuotaFetchResult> {
     use crate::error::AppError;
 
-    let (project_id, subscription_tier) = fetch_project_id(access_token, email).await;
+    let base_url = resolve_cloud_code_base_url(ctx);
+    let (resolved_project_id, subscription_tier) =
+        fetch_project_id_with_context(access_token, email, ctx).await;
+    let effective_project_id = resolved_project_id
+        .clone()
+        .or_else(|| ctx.preferred_project_id.clone());
 
+    // 保留缓存，但缓存命中前仍先执行与 Antigravity.app 对齐的项目识别流程。
     if !skip_cache {
         if let Some(record) = read_api_cache("authorized", email) {
             if is_api_cache_valid(&record) {
@@ -551,29 +736,11 @@ pub async fn fetch_quota(
                 if let Ok(quota_response) =
                     serde_json::from_value::<QuotaResponse>(record.payload.clone())
                 {
-                    let mut quota_data = QuotaData::new();
-                    for (name, info) in quota_response.models {
-                        let display_name = info
-                            .display_name
-                            .as_deref()
-                            .map(str::trim)
-                            .filter(|value| !value.is_empty())
-                            .map(str::to_string);
-                        if let Some(quota_info) = info.quota_info {
-                            let percentage = quota_info
-                                .remaining_fraction
-                                .map(|f| (f * 100.0) as i32)
-                                .unwrap_or(0);
-                            let reset_time = quota_info.reset_time.unwrap_or_default();
-                            if name.contains("gemini") || name.contains("claude") {
-                                quota_data.add_model(name, display_name, percentage, reset_time);
-                            }
-                        }
-                    }
-                    quota_data.subscription_tier = subscription_tier.clone();
+                    let quota_data =
+                        build_quota_data_from_response(quota_response, subscription_tier.clone());
                     return Ok(QuotaFetchResult {
                         quota: quota_data,
-                        project_id: project_id.clone(),
+                        project_id: effective_project_id.clone(),
                         error: None,
                     });
                 }
@@ -588,7 +755,7 @@ pub async fn fetch_quota(
     }
 
     let client = create_client();
-    let payload = project_id
+    let payload = effective_project_id
         .as_ref()
         .map(|id| json!({ "project": id }))
         .unwrap_or_else(|| json!({}));
@@ -597,16 +764,16 @@ pub async fn fetch_quota(
 
     for attempt in 1..=max_retries {
         match client
-            .post(QUOTA_API_URL)
+            .post(format!("{}/{}", base_url, FETCH_AVAILABLE_MODELS_PATH))
             .bearer_auth(access_token)
             .header("User-Agent", USER_AGENT)
             .header(reqwest::header::ACCEPT_ENCODING, "gzip")
-            .json(&json!(payload))
+            .json(&payload)
             .send()
             .await
         {
             Ok(response) => {
-                if let Err(_) = response.error_for_status_ref() {
+                if response.error_for_status_ref().is_err() {
                     let status = response.status();
 
                     if status == reqwest::StatusCode::FORBIDDEN {
@@ -625,7 +792,7 @@ pub async fn fetch_quota(
                         };
                         return Ok(QuotaFetchResult {
                             quota: q,
-                            project_id: project_id.clone(),
+                            project_id: effective_project_id.clone(),
                             error: Some(QuotaFetchError {
                                 code: Some(status.as_u16()),
                                 message,
@@ -636,56 +803,32 @@ pub async fn fetch_quota(
                     if attempt < max_retries {
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                         continue;
-                    } else {
-                        let text = response.text().await.unwrap_or_default();
-                        return Err(AppError::Unknown(format!(
-                            "API 错误: {} - {}",
-                            status, text
-                        )));
                     }
+
+                    let text = response.text().await.unwrap_or_default();
+                    return Err(AppError::Unknown(format!("API 错误: {} - {}", status, text)));
                 }
 
-                let body = response.text().await.map_err(|e| AppError::Network(e))?;
+                let body = response.text().await.map_err(AppError::Network)?;
                 let payload_value: serde_json::Value = serde_json::from_str(&body)
                     .map_err(|e| AppError::Unknown(format!("API 响应解析失败: {}", e)))?;
+
                 write_api_cache(
                     "authorized",
                     "desktop",
                     email,
-                    project_id.clone(),
+                    effective_project_id.clone(),
                     payload_value.clone(),
                 );
+
                 let quota_response: QuotaResponse = serde_json::from_value(payload_value)
                     .map_err(|e| AppError::Unknown(format!("API 响应解析失败: {}", e)))?;
-
-                let mut quota_data = QuotaData::new();
-
-                for (name, info) in quota_response.models {
-                    let display_name = info
-                        .display_name
-                        .as_deref()
-                        .map(str::trim)
-                        .filter(|value| !value.is_empty())
-                        .map(str::to_string);
-                    if let Some(quota_info) = info.quota_info {
-                        let percentage = quota_info
-                            .remaining_fraction
-                            .map(|f| (f * 100.0) as i32)
-                            .unwrap_or(0);
-
-                        let reset_time = quota_info.reset_time.unwrap_or_default();
-
-                        if name.contains("gemini") || name.contains("claude") {
-                            quota_data.add_model(name, display_name, percentage, reset_time);
-                        }
-                    }
-                }
-
-                quota_data.subscription_tier = subscription_tier.clone();
+                let quota_data =
+                    build_quota_data_from_response(quota_response, subscription_tier.clone());
 
                 return Ok(QuotaFetchResult {
                     quota: quota_data,
-                    project_id: project_id.clone(),
+                    project_id: effective_project_id.clone(),
                     error: None,
                 });
             }

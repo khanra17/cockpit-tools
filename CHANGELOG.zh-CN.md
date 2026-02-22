@@ -7,6 +7,12 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
 ---
+## [0.8.11] - 2026-02-22
+
+### 变更
+- **Antigravity 配额后端获取流程对齐 Antigravity.app**：统一 `loadCodeAssist` / `onboardUser` / `fetchAvailableModels` 的 Cloud Code 域名选择逻辑（按 Antigravity 风格路由），后端请求补充透传 `cloudaicompanionProject`，`onboardUser` 改为“先 `POST` 再按 operation `GET` 轮询”（500ms 轮询间隔）。本地配额 API 缓存仍保留，同时缓存前的后端获取流程已完成对齐。
+
+---
 ## [0.8.10] - 2026-02-22
 
 ### 新增
