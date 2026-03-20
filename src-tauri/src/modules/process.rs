@@ -2350,6 +2350,114 @@ if ($pkg -and -not [string]::IsNullOrWhiteSpace($pkg.InstallLocation)) {
     None
 }
 
+#[cfg(target_os = "windows")]
+fn detect_codex_store_app_user_model_id_by_startapps() -> Option<String> {
+    let script = r#"$entry = Get-StartApps | Where-Object { $_.AppID -like 'OpenAI.Codex_*' } |
+  Select-Object -First 1
+if ($entry -and -not [string]::IsNullOrWhiteSpace($entry.AppID)) {
+  Write-Output ([string]$entry.AppID.Trim())
+}"#;
+
+    let output = match powershell_output(&["-Command", script]) {
+        Ok(value) => value,
+        Err(_) => powershell_output_file(script).ok()?,
+    };
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for line in stdout.lines() {
+        let app_user_model_id = line.trim().trim_matches('"');
+        if !app_user_model_id.is_empty() {
+            return Some(app_user_model_id.to_string());
+        }
+    }
+    None
+}
+
+#[cfg(target_os = "windows")]
+fn detect_codex_store_app_user_model_id_by_appx_fallback() -> Option<String> {
+    let script = r#"$pkg = Get-AppxPackage -Name 'OpenAI.Codex' -ErrorAction SilentlyContinue |
+  Sort-Object -Property Version -Descending |
+  Select-Object -First 1
+if ($pkg -and -not [string]::IsNullOrWhiteSpace($pkg.PackageFamilyName)) {
+  Write-Output ([string]($pkg.PackageFamilyName.Trim() + '!App'))
+}"#;
+
+    let output = match powershell_output(&["-Command", script]) {
+        Ok(value) => value,
+        Err(_) => powershell_output_file(script).ok()?,
+    };
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for line in stdout.lines() {
+        let app_user_model_id = line.trim().trim_matches('"');
+        if !app_user_model_id.is_empty() {
+            return Some(app_user_model_id.to_string());
+        }
+    }
+    None
+}
+
+#[cfg(target_os = "windows")]
+fn detect_codex_store_app_user_model_id() -> Option<String> {
+    if let Some(app_user_model_id) = detect_codex_store_app_user_model_id_by_startapps() {
+        crate::modules::logger::log_info(&format!(
+            "[Codex Store] StartApps 命中 AppUserModelId: {}",
+            app_user_model_id
+        ));
+        return Some(app_user_model_id);
+    }
+    if let Some(app_user_model_id) = detect_codex_store_app_user_model_id_by_appx_fallback() {
+        crate::modules::logger::log_info(&format!(
+            "[Codex Store] Appx fallback 命中 AppUserModelId: {}",
+            app_user_model_id
+        ));
+        return Some(app_user_model_id);
+    }
+    None
+}
+
+#[cfg(target_os = "windows")]
+fn launch_codex_via_store_app_user_model_id(app_user_model_id: &str) -> Result<(), String> {
+    let app_user_model_id = app_user_model_id.trim();
+    if app_user_model_id.is_empty() {
+        return Err("Codex AppUserModelId 为空".to_string());
+    }
+
+    let escaped = escape_powershell_single_quoted(app_user_model_id);
+    let script = format!(
+        r#"$appId='{escaped}';
+$target='shell:AppsFolder\' + $appId
+Start-Process -FilePath $target -ErrorAction Stop | Out-Null"#
+    );
+
+    let output = match powershell_output(&["-Command", &script]) {
+        Ok(value) => value,
+        Err(_) => {
+            powershell_output_file(&script).map_err(|e| format!("系统入口启动调用失败: {}", e))?
+        }
+    };
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stderr_head = stderr.trim().chars().take(400).collect::<String>();
+        return Err(format!(
+            "系统入口启动失败: status={}, stderr={}",
+            output.status,
+            if stderr_head.is_empty() {
+                "<empty>".to_string()
+            } else {
+                stderr_head
+            }
+        ));
+    }
+    Ok(())
+}
+
 fn detect_codex_exec_path() -> Option<std::path::PathBuf> {
     #[cfg(target_os = "macos")]
     {
@@ -2454,7 +2562,21 @@ pub fn ensure_vscode_launch_path_configured() -> Result<(), String> {
 }
 
 pub fn ensure_codex_launch_path_configured() -> Result<(), String> {
-    resolve_codex_launch_path().map(|_| ())
+    #[cfg(target_os = "windows")]
+    {
+        if detect_codex_store_app_user_model_id().is_some() {
+            return Ok(());
+        }
+        if resolve_codex_launch_path().is_ok() {
+            return Ok(());
+        }
+        return Err("未检测到 Codex 商店安装，请先在 Microsoft Store 安装 Codex".to_string());
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        resolve_codex_launch_path().map(|_| ())
+    }
 }
 
 pub fn ensure_codebuddy_launch_path_configured() -> Result<(), String> {
@@ -4045,7 +4167,32 @@ pub fn resolve_codex_pid_from_entries(
     pick_preferred_pid(matches)
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+pub fn resolve_codex_pid_from_entries(
+    last_pid: Option<u32>,
+    _codex_home: Option<&str>,
+    entries: &[(u32, Option<String>)],
+) -> Option<u32> {
+    let mut pids: Vec<u32> = entries.iter().map(|(pid, _)| *pid).collect();
+    pids.sort();
+    pids.dedup();
+
+    if let Some(pid) = last_pid {
+        if is_pid_running(pid) && pids.contains(&pid) {
+            return Some(pid);
+        }
+        if is_pid_running(pid) && !pids.is_empty() {
+            crate::modules::logger::log_warn(&format!(
+                "[Codex Resolve] 忽略不匹配的 last_pid={}，matched_pids={:?}",
+                pid, pids
+            ));
+        }
+    }
+
+    pick_preferred_pid(pids)
+}
+
+#[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
 pub fn resolve_codex_pid_from_entries(
     last_pid: Option<u32>,
     _codex_home: Option<&str>,
@@ -4060,7 +4207,13 @@ pub fn resolve_codex_pid(last_pid: Option<u32>, codex_home: Option<&str>) -> Opt
     resolve_codex_pid_from_entries(last_pid, codex_home, &entries)
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+pub fn resolve_codex_pid(last_pid: Option<u32>, _codex_home: Option<&str>) -> Option<u32> {
+    let entries = collect_codex_process_entries();
+    resolve_codex_pid_from_entries(last_pid, None, &entries)
+}
+
+#[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
 pub fn resolve_codex_pid(last_pid: Option<u32>, _codex_home: Option<&str>) -> Option<u32> {
     last_pid.filter(|pid| is_pid_running(*pid))
 }
@@ -5954,7 +6107,102 @@ pub fn collect_codex_process_entries() -> Vec<(u32, Option<String>)> {
     filter_entries_by_expected_launch_path("Codex", result, expected_launch)
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+fn collect_codex_process_entries_from_powershell() -> Vec<(u32, Option<String>)> {
+    let mut entries: Vec<(u32, Option<String>)> = Vec::new();
+    let script = r#"Get-CimInstance Win32_Process -Filter "Name='Codex.exe'" -ErrorAction SilentlyContinue |
+  ForEach-Object { "$($_.ProcessId)|$($_.CommandLine)" }"#;
+
+    let output = match powershell_output(&["-Command", script]) {
+        Ok(value) => value,
+        Err(_) => return entries,
+    };
+    if !output.status.success() {
+        return entries;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for line in stdout.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let mut parts = line.splitn(2, '|');
+        let pid_str = parts.next().unwrap_or("").trim();
+        let cmdline = parts.next().unwrap_or("").trim();
+        let pid = match pid_str.parse::<u32>() {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        let lower = cmdline.to_lowercase();
+        if !lower.is_empty() && (is_helper_command_line(&lower) || lower.contains("crashpad_handler")) {
+            continue;
+        }
+        entries.push((pid, None));
+    }
+
+    entries.sort_by_key(|(pid, _)| *pid);
+    entries.dedup_by(|a, b| a.0 == b.0);
+    entries
+}
+
+#[cfg(target_os = "windows")]
+fn collect_codex_process_entries_from_sysinfo_fallback() -> Vec<(u32, Option<String>)> {
+    let mut entries: Vec<(u32, Option<String>)> = Vec::new();
+    let mut system = System::new();
+    system.refresh_processes_specifics(
+        sysinfo::ProcessesToUpdate::All,
+        true,
+        ProcessRefreshKind::nothing()
+            .with_exe(UpdateKind::OnlyIfNotSet)
+            .with_cmd(UpdateKind::OnlyIfNotSet),
+    );
+    let current_pid = std::process::id();
+    for (pid, process) in system.processes() {
+        let pid_u32 = pid.as_u32();
+        if pid_u32 == current_pid {
+            continue;
+        }
+
+        let name = process.name().to_string_lossy().to_lowercase();
+        let exe_path = process
+            .exe()
+            .and_then(|value| value.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+        if name != "codex.exe" && !exe_path.ends_with("\\codex.exe") {
+            continue;
+        }
+
+        let args_line = process
+            .cmd()
+            .iter()
+            .map(|arg| arg.to_string_lossy().to_lowercase())
+            .collect::<Vec<String>>()
+            .join(" ");
+        if !args_line.is_empty()
+            && (is_helper_command_line(&args_line) || args_line.contains("crashpad_handler"))
+        {
+            continue;
+        }
+
+        entries.push((pid_u32, None));
+    }
+    entries.sort_by_key(|(pid, _)| *pid);
+    entries.dedup_by(|a, b| a.0 == b.0);
+    entries
+}
+
+#[cfg(target_os = "windows")]
+pub fn collect_codex_process_entries() -> Vec<(u32, Option<String>)> {
+    let entries = collect_codex_process_entries_from_powershell();
+    if !entries.is_empty() {
+        return entries;
+    }
+    collect_codex_process_entries_from_sysinfo_fallback()
+}
+
+#[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
 pub fn collect_codex_process_entries() -> Vec<(u32, Option<String>)> {
     Vec::new()
 }
@@ -6090,7 +6338,79 @@ pub fn start_codex_default(extra_args: &[String]) -> Result<u32, String> {
     {
         use std::os::windows::process::CommandExt;
 
+        let before_pids: HashSet<u32> = collect_codex_process_entries()
+            .into_iter()
+            .map(|(pid, _)| pid)
+            .collect();
+        let app_user_model_id = detect_codex_store_app_user_model_id();
+        if let Some(app_user_model_id) = app_user_model_id {
+            crate::modules::logger::log_info(&format!(
+                "[Codex Start] 启动策略候选=system-store-entry app_id={}",
+                app_user_model_id
+            ));
+            match launch_codex_via_store_app_user_model_id(&app_user_model_id) {
+                Ok(()) => {
+                    crate::modules::logger::log_info(&format!(
+                        "[Codex Start] 已通过系统入口启动 Codex: {}",
+                        app_user_model_id
+                    ));
+                    let probe_started = Instant::now();
+                    let timeout = Duration::from_secs(15);
+                    while probe_started.elapsed() < timeout {
+                        let entries = collect_codex_process_entries();
+                        let mut new_pids: Vec<u32> = entries
+                            .iter()
+                            .map(|(pid, _)| *pid)
+                            .filter(|pid| !before_pids.contains(pid))
+                            .collect();
+                        if let Some(pid) = pick_preferred_pid(new_pids.clone()) {
+                            crate::modules::logger::log_info(&format!(
+                                "[Codex Start] 启动策略=system-store-entry app_id={} pid={}",
+                                app_user_model_id, pid
+                            ));
+                            return Ok(pid);
+                        }
+                        if before_pids.is_empty() {
+                            new_pids = entries.iter().map(|(pid, _)| *pid).collect();
+                            if let Some(pid) = pick_preferred_pid(new_pids) {
+                                crate::modules::logger::log_info(&format!(
+                                    "[Codex Start] 启动策略=system-store-entry app_id={} pid={}",
+                                    app_user_model_id, pid
+                                ));
+                                return Ok(pid);
+                            }
+                        }
+                        thread::sleep(Duration::from_millis(250));
+                    }
+                    if let Some(pid) = resolve_codex_pid(None, None) {
+                        crate::modules::logger::log_info(&format!(
+                            "[Codex Start] 启动策略=system-store-entry app_id={} pid={}",
+                            app_user_model_id, pid
+                        ));
+                        return Ok(pid);
+                    }
+                    crate::modules::logger::log_warn(
+                        "[Codex Start] 系统入口已调用，但 15s 内未探测到 Codex 主进程，准备回退可执行路径",
+                    );
+                }
+                Err(err) => {
+                    crate::modules::logger::log_warn(&format!(
+                        "[Codex Start] 系统入口启动失败，准备回退可执行路径: {}",
+                        err
+                    ));
+                }
+            }
+        } else {
+            crate::modules::logger::log_warn(
+                "[Codex Start] 未探测到 Codex AppUserModelId，准备回退可执行路径",
+            );
+        }
+
         let launch_path = resolve_codex_launch_path()?;
+        crate::modules::logger::log_info(&format!(
+            "[Codex Start] 启动策略=exe-path launch_path={}",
+            launch_path.to_string_lossy()
+        ));
         let mut cmd = Command::new(&launch_path);
         apply_managed_proxy_env_to_command(&mut cmd);
         if should_detach_child() {
@@ -6109,7 +6429,11 @@ pub fn start_codex_default(extra_args: &[String]) -> Result<u32, String> {
 
         let child =
             spawn_command_with_trace(&mut cmd).map_err(|e| format!("启动 Codex 失败: {}", e))?;
-        crate::modules::logger::log_info("Codex 启动命令已发送");
+        crate::modules::logger::log_info(&format!(
+            "[Codex Start] 启动策略=exe-path launch_path={} pid={}",
+            launch_path.to_string_lossy(),
+            child.id()
+        ));
         return Ok(child.id());
     }
 
