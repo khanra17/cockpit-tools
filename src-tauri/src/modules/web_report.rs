@@ -12,6 +12,8 @@ use tokio::time::{timeout, Duration};
 use url::Url;
 
 use super::config::PORT_RANGE;
+use crate::models::workbuddy::WorkbuddyAccount;
+use crate::models::zed::ZedAccount;
 
 const MAX_HTTP_REQUEST_BYTES: usize = 32 * 1024;
 const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(5);
@@ -131,6 +133,10 @@ fn build_service_refresh_policies(cfg: &super::config::UserConfig) -> Vec<Servic
             key: "trae",
             interval_minutes: cfg.trae_auto_refresh_minutes,
         },
+        ServiceRefreshPolicy {
+            key: "zed",
+            interval_minutes: cfg.zed_auto_refresh_minutes,
+        },
     ]
 }
 
@@ -173,6 +179,7 @@ async fn run_refresh_for_service(policy: ServiceRefreshPolicy) -> Result<(), Str
             .await
             .map(|_| ()),
         "trae" => super::trae_account::refresh_all_tokens().await.map(|_| ()),
+        "zed" => super::zed_account::refresh_all_accounts().await.map(|_| ()),
         _ => Err(format!("未知服务: {}", policy.key)),
     }
 }
@@ -589,6 +596,8 @@ fn build_report_rows() -> Vec<ReportRow> {
     );
     append_qoder_rows(&mut rows);
     append_trae_rows(&mut rows);
+    append_workbuddy_rows(&mut rows);
+    append_zed_rows(&mut rows);
 
     if rows.is_empty() {
         rows.push(make_row(
@@ -889,6 +898,69 @@ fn append_windsurf_plan_status_candidate_rows(
     reset_fallback: &str,
     status: &str,
 ) -> usize {
+    let daily_remaining_percent = pick_first_number(
+        plan_status,
+        &[
+            &["dailyQuotaRemainingPercent"],
+            &["daily_quota_remaining_percent"],
+        ],
+    );
+    let weekly_remaining_percent = pick_first_number(
+        plan_status,
+        &[
+            &["weeklyQuotaRemainingPercent"],
+            &["weekly_quota_remaining_percent"],
+        ],
+    );
+    let daily_reset = pick_first_reset_value(
+        plan_status,
+        &[&["dailyQuotaResetAtUnix"], &["daily_quota_reset_at_unix"]],
+        reset_fallback,
+    );
+    let weekly_reset = pick_first_reset_value(
+        plan_status,
+        &[&["weeklyQuotaResetAtUnix"], &["weekly_quota_reset_at_unix"]],
+        reset_fallback,
+    );
+    let overage_balance_micros = pick_first_number(
+        plan_status,
+        &[&["overageBalanceMicros"], &["overage_balance_micros"]],
+    );
+
+    let mut quota_count = 0usize;
+    quota_count += push_windsurf_quota_percent_row(
+        rows,
+        account,
+        "Daily quota usage",
+        daily_remaining_percent,
+        &daily_reset,
+        status,
+    );
+    quota_count += push_windsurf_quota_percent_row(
+        rows,
+        account,
+        "Weekly quota usage",
+        weekly_remaining_percent,
+        &weekly_reset,
+        status,
+    );
+    if let Some(balance_micros) = overage_balance_micros {
+        rows.push(make_row(
+            "Windsurf",
+            account,
+            "Extra usage balance",
+            "-",
+            &format_micros_usd(balance_micros),
+            reset_fallback,
+            status,
+            "",
+        ));
+        quota_count += 1;
+    }
+    if quota_count > 0 {
+        return quota_count;
+    }
+
     let prompt_total = pick_first_number(
         plan_status,
         &[
@@ -956,6 +1028,33 @@ fn append_windsurf_plan_status_candidate_rows(
     );
     count += push_windsurf_credit_row(rows, account, "Flow", flow_total, flow_used, &reset, status);
     count
+}
+
+fn push_windsurf_quota_percent_row(
+    rows: &mut Vec<ReportRow>,
+    account: &str,
+    metric: &str,
+    remaining_percent: Option<f64>,
+    reset: &str,
+    status: &str,
+) -> usize {
+    let Some(remaining_raw) = remaining_percent else {
+        return 0;
+    };
+
+    let remaining = clamp_percent(remaining_raw);
+    let used = clamp_percent(100.0 - remaining);
+    rows.push(make_row(
+        "Windsurf",
+        account,
+        metric,
+        &percent_text(used),
+        &percent_text(remaining),
+        reset,
+        status,
+        "",
+    ));
+    1
 }
 
 fn push_windsurf_credit_row(
@@ -1086,40 +1185,180 @@ fn append_qoder_rows(rows: &mut Vec<ReportRow>) {
     let accounts = super::qoder_account::list_accounts();
     for account in accounts {
         let account_name = account.email.clone();
-        if let (Some(total), Some(used)) = (account.credits_total, account.credits_used) {
-            if total > 0.0 {
-                let remaining = account.credits_remaining.unwrap_or((total - used).max(0.0));
-                let used_percent = account
-                    .credits_usage_percent
-                    .unwrap_or((used / total) * 100.0);
-                rows.push(make_row(
-                    "Qoder",
-                    &account_name,
-                    "Credits",
-                    &format!("{:.2}/{:.2} ({})", used, total, percent_text(used_percent)),
-                    &format!("{:.2}", remaining.max(0.0)),
-                    "-",
-                    "normal",
-                    account.plan_type.as_deref().unwrap_or(""),
-                ));
-                continue;
-            }
+        let mut roots: Vec<&Value> = Vec::new();
+        if let Some(raw) = account.auth_credit_usage_raw.as_ref() {
+            roots.push(raw);
+        }
+        if let Some(raw) = account.auth_user_plan_raw.as_ref() {
+            roots.push(raw);
+        }
+        if let Some(raw) = account.auth_user_info_raw.as_ref() {
+            roots.push(raw);
         }
 
-        rows.push(make_row(
-            "Qoder",
+        let reset = pick_qoder_reset_value(&roots);
+        let mut pushed = 0usize;
+        pushed += push_qoder_bucket_row(
+            rows,
             &account_name,
-            "Usage",
-            "-",
-            "-",
-            "-",
-            "normal",
-            account
-                .plan_type
-                .as_deref()
-                .unwrap_or("Credits data unavailable"),
-        ));
+            &roots,
+            &[&["userQuota"], &["user_quota"]],
+            "User quota",
+            &reset,
+            account.plan_type.as_deref().unwrap_or(""),
+        );
+        pushed += push_qoder_bucket_row(
+            rows,
+            &account_name,
+            &roots,
+            &[&["addOnQuota"], &["addonQuota"], &["add_on_quota"]],
+            "Add-on quota",
+            &reset,
+            account.plan_type.as_deref().unwrap_or(""),
+        );
+
+        if pushed == 0 {
+            if let (Some(total), Some(used)) = (account.credits_total, account.credits_used) {
+                if total > 0.0 {
+                    let remaining = account.credits_remaining.unwrap_or((total - used).max(0.0));
+                    let used_percent = account
+                        .credits_usage_percent
+                        .unwrap_or((used / total) * 100.0);
+                    rows.push(make_row(
+                        "Qoder",
+                        &account_name,
+                        "Credits",
+                        &format!(
+                            "{}/{} ({})",
+                            format_number_compact(used),
+                            format_number_compact(total),
+                            percent_text(used_percent)
+                        ),
+                        &format_number_compact(remaining.max(0.0)),
+                        &reset,
+                        "normal",
+                        account.plan_type.as_deref().unwrap_or(""),
+                    ));
+                    continue;
+                }
+            }
+
+            rows.push(make_row(
+                "Qoder",
+                &account_name,
+                "Usage",
+                "-",
+                "-",
+                &reset,
+                "normal",
+                account
+                    .plan_type
+                    .as_deref()
+                    .unwrap_or("Credits data unavailable"),
+            ));
+        }
     }
+}
+
+fn push_qoder_bucket_row(
+    rows: &mut Vec<ReportRow>,
+    account_name: &str,
+    roots: &[&Value],
+    bucket_paths: &[&[&str]],
+    metric: &str,
+    reset: &str,
+    note: &str,
+) -> usize {
+    let mut used: Option<f64> = None;
+    let mut total: Option<f64> = None;
+    let mut remaining: Option<f64> = None;
+    let mut percentage: Option<f64> = None;
+
+    for root in roots {
+        for path in bucket_paths {
+            let Some(bucket) = get_nested_value(root, path) else {
+                continue;
+            };
+            used = used.or(pick_first_number(bucket, &[&["used"], &["usage"], &["consumed"]]));
+            total = total.or(pick_first_number(bucket, &[&["total"], &["quota"], &["limit"]]));
+            remaining =
+                remaining.or(pick_first_number(bucket, &[&["remaining"], &["available"], &["left"]]));
+            percentage = percentage.or(pick_first_number(
+                bucket,
+                &[&["percentage"], &["usagePercent"], &["usage_percentage"]],
+            ));
+        }
+    }
+
+    if percentage.is_none() {
+        if let (Some(u), Some(t)) = (used, total) {
+            if t > 0.0 {
+                percentage = Some((u / t) * 100.0);
+            }
+        }
+    }
+    let used_text = if let (Some(u), Some(t)) = (used, total) {
+        if t > 0.0 {
+            let pct = percentage.unwrap_or((u / t) * 100.0);
+            format!(
+                "{}/{} ({})",
+                format_number_compact(u),
+                format_number_compact(t),
+                percent_text(pct)
+            )
+        } else {
+            "-".to_string()
+        }
+    } else if let Some(pct) = percentage {
+        percent_text(pct)
+    } else {
+        "-".to_string()
+    };
+
+    let remaining_text = if let Some(v) = remaining {
+        format_number_compact(v.max(0.0))
+    } else if let (Some(t), Some(u)) = (total, used) {
+        format_number_compact((t - u).max(0.0))
+    } else if let Some(pct) = percentage {
+        percent_text(100.0 - clamp_percent(pct))
+    } else {
+        "-".to_string()
+    };
+
+    if used_text == "-" && remaining_text == "-" {
+        return 0;
+    }
+
+    rows.push(make_row(
+        "Qoder",
+        account_name,
+        metric,
+        &used_text,
+        &remaining_text,
+        reset,
+        "normal",
+        note,
+    ));
+    1
+}
+
+fn pick_qoder_reset_value(roots: &[&Value]) -> String {
+    for root in roots {
+        let value = pick_first_reset_value(
+            root,
+            &[
+                &["expiresAt"],
+                &["expires_at"],
+                &["resetAt"],
+                &["reset_at"],
+            ],
+            "-",
+        );
+        if value != "-" {
+            return value;
+        }
+    }
+    "-".to_string()
 }
 
 fn append_cursor_rows(rows: &mut Vec<ReportRow>) {
@@ -1319,28 +1558,328 @@ fn append_codebuddy_rows(
     }
 }
 
+fn append_workbuddy_rows(rows: &mut Vec<ReportRow>) {
+    let accounts = super::workbuddy_account::list_accounts();
+    for account in accounts {
+        let account_name = account.email.clone();
+        let status = account.status.as_deref().unwrap_or("normal");
+        let resources = extract_workbuddy_resources(&account);
+        let mut pushed = false;
+
+        for item in resources {
+            let total = pick_number_in_item(
+                item,
+                &[
+                    "CycleCapacitySizePrecise",
+                    "CycleCapacitySize",
+                    "CapacitySizePrecise",
+                    "CapacitySize",
+                ],
+            );
+            let remaining = pick_number_in_item(
+                item,
+                &[
+                    "CycleCapacityRemainPrecise",
+                    "CycleCapacityRemain",
+                    "CapacityRemainPrecise",
+                    "CapacityRemain",
+                ],
+            );
+
+            let (Some(total), Some(remaining)) = (total, remaining) else {
+                continue;
+            };
+            if total <= 0.0 {
+                continue;
+            }
+
+            let used = (total - remaining).max(0.0);
+            let used_percent = clamp_percent((used / total) * 100.0);
+            let metric = pick_string_in_item(item, &["PackageName", "PackageCode"])
+                .unwrap_or_else(|| "Package".to_string());
+            let reset = pick_string_in_item(item, &["CycleEndTime", "ExpiredTime"])
+                .unwrap_or_else(|| "-".to_string());
+
+            rows.push(make_row(
+                "Workbuddy",
+                &account_name,
+                &metric,
+                &format!("{:.2}/{:.2} ({})", used, total, percent_text(used_percent)),
+                &format!("{:.2}", remaining.max(0.0)),
+                &normalize_reset_text(&reset),
+                status,
+                "",
+            ));
+            pushed = true;
+        }
+
+        if !pushed {
+            let fallback_note = account
+                .dosage_notify_zh
+                .as_deref()
+                .or(account.dosage_notify_en.as_deref())
+                .or(account.status_reason.as_deref())
+                .or(account.quota_query_last_error.as_deref())
+                .unwrap_or("Usage data unavailable");
+            rows.push(make_row(
+                "Workbuddy",
+                &account_name,
+                "Usage",
+                "-",
+                "-",
+                "-",
+                status,
+                fallback_note,
+            ));
+        }
+    }
+}
+
+fn append_zed_rows(rows: &mut Vec<ReportRow>) {
+    let accounts = super::zed_account::list_accounts();
+    for account in accounts {
+        let account_name = zed_display_name(&account);
+        let reset = format_unix_timestamp(account.billing_period_end_at);
+        let mut pushed = false;
+
+        if let (Some(used_cents), Some(limit_cents)) =
+            (account.token_spend_used_cents, account.token_spend_limit_cents)
+        {
+            if limit_cents > 0 {
+                let used = used_cents.max(0) as f64 / 100.0;
+                let total = limit_cents as f64 / 100.0;
+                let remaining = account
+                    .token_spend_remaining_cents
+                    .unwrap_or(limit_cents.saturating_sub(used_cents))
+                    .max(0) as f64
+                    / 100.0;
+                let used_percent = clamp_percent((used / total) * 100.0);
+
+                rows.push(make_row(
+                    "Zed",
+                    &account_name,
+                    "Token spend",
+                    &format!("${:.2}/${:.2} ({})", used, total, percent_text(used_percent)),
+                    &format!("${:.2}", remaining),
+                    &reset,
+                    "normal",
+                    "",
+                ));
+                pushed = true;
+            }
+        }
+
+        let edit_used = account.edit_predictions_used.map(|value| value as f64);
+        let edit_limit = parse_numeric_text(account.edit_predictions_limit_raw.as_deref());
+        let edit_remaining = parse_numeric_text(account.edit_predictions_remaining_raw.as_deref());
+        if let Some(total) = edit_limit {
+            if total > 0.0 {
+                let used = edit_used.unwrap_or(0.0).max(0.0);
+                let remaining = edit_remaining.unwrap_or((total - used).max(0.0)).max(0.0);
+                let used_percent = clamp_percent((used / total) * 100.0);
+                rows.push(make_row(
+                    "Zed",
+                    &account_name,
+                    "Edit Predictions",
+                    &format!("{:.0}/{:.0} ({})", used, total, percent_text(used_percent)),
+                    &format!("{:.0}", remaining),
+                    &reset,
+                    "normal",
+                    "",
+                ));
+                pushed = true;
+            }
+        } else if account
+            .edit_predictions_limit_raw
+            .as_deref()
+            .map(|value| value.trim().eq_ignore_ascii_case("unlimited"))
+            == Some(true)
+        {
+            rows.push(make_row(
+                "Zed",
+                &account_name,
+                "Edit Predictions",
+                "-",
+                "Unlimited",
+                &reset,
+                "normal",
+                "",
+            ));
+            pushed = true;
+        }
+
+        if account.has_overdue_invoices.is_some() {
+            rows.push(make_row(
+                "Zed",
+                &account_name,
+                "Overdue invoices",
+                "-",
+                if account.has_overdue_invoices == Some(true) {
+                    "Yes"
+                } else {
+                    "No"
+                },
+                &reset,
+                "normal",
+                account.subscription_status.as_deref().unwrap_or(""),
+            ));
+            pushed = true;
+        }
+
+        if !pushed {
+            rows.push(make_row(
+                "Zed",
+                &account_name,
+                "Usage",
+                "-",
+                "-",
+                &reset,
+                "normal",
+                account.subscription_status.as_deref().unwrap_or("Usage data unavailable"),
+            ));
+        }
+    }
+}
+
 fn append_trae_rows(rows: &mut Vec<ReportRow>) {
     let accounts = super::trae_account::list_accounts();
     for account in accounts {
         let account_name = account.email.clone();
         let status = account.status.as_deref().unwrap_or("normal");
-        let reset = format_unix_timestamp(account.plan_reset_at);
-        let note = account
-            .plan_type
-            .as_deref()
-            .or(account.status_reason.as_deref())
-            .unwrap_or("Usage data unavailable");
+        let reset_fallback = format_unix_timestamp(account.plan_reset_at);
+        let mut pushed = 0usize;
 
-        rows.push(make_row(
-            "Trae",
-            &account_name,
-            "Plan",
-            "-",
-            "-",
-            &reset,
-            status,
-            note,
-        ));
+        if let Some(pack) = pick_preferred_trae_pack(account.trae_usage_raw.as_ref()) {
+            let basic_used = pick_first_number(pack, &[&["usage", "basic_usage_amount"]]).unwrap_or(0.0);
+            let basic_total =
+                pick_first_number(pack, &[&["entitlement_base_info", "quota", "basic_usage_limit"]]);
+            if let Some(total) = basic_total {
+                if total > 0.0 {
+                    let used = basic_used.max(0.0);
+                    let remaining = (total - used).max(0.0);
+                    let used_percent = clamp_percent((used / total) * 100.0);
+                    let reset = pick_trae_pack_reset(pack).unwrap_or_else(|| reset_fallback.clone());
+                    rows.push(make_row(
+                        "Trae",
+                        &account_name,
+                        "Basic usage",
+                        &format!(
+                            "{}/{} ({})",
+                            format_number_compact(used),
+                            format_number_compact(total),
+                            percent_text(used_percent)
+                        ),
+                        &format_number_compact(remaining),
+                        &reset,
+                        status,
+                        account.plan_type.as_deref().unwrap_or(""),
+                    ));
+                    pushed += 1;
+                }
+            }
+
+            let bonus_used = pick_first_number(pack, &[&["usage", "bonus_usage_amount"]]).unwrap_or(0.0);
+            let bonus_total =
+                pick_first_number(pack, &[&["entitlement_base_info", "quota", "bonus_usage_limit"]]);
+            if let Some(total) = bonus_total {
+                if total > 0.0 {
+                    let used = bonus_used.max(0.0);
+                    let remaining = (total - used).max(0.0);
+                    let used_percent = clamp_percent((used / total) * 100.0);
+                    let reset = pick_trae_pack_reset(pack).unwrap_or_else(|| reset_fallback.clone());
+                    rows.push(make_row(
+                        "Trae",
+                        &account_name,
+                        "Bonus usage",
+                        &format!(
+                            "{}/{} ({})",
+                            format_number_compact(used),
+                            format_number_compact(total),
+                            percent_text(used_percent)
+                        ),
+                        &format_number_compact(remaining),
+                        &reset,
+                        status,
+                        account.plan_type.as_deref().unwrap_or(""),
+                    ));
+                    pushed += 1;
+                }
+            }
+
+            if let Some(pay_go_amount) = pick_first_number(pack, &[&["usage", "pay_go_amount"]]) {
+                if pay_go_amount > 0.0 {
+                    rows.push(make_row(
+                        "Trae",
+                        &account_name,
+                        "On-Demand Usage",
+                        &format!("${:.2}", pay_go_amount),
+                        "-",
+                        &reset_fallback,
+                        status,
+                        account.plan_type.as_deref().unwrap_or(""),
+                    ));
+                    pushed += 1;
+                }
+            }
+        }
+
+        if pushed == 0 {
+            let note = account
+                .plan_type
+                .as_deref()
+                .or(account.status_reason.as_deref())
+                .unwrap_or("Usage data unavailable");
+
+            rows.push(make_row(
+                "Trae",
+                &account_name,
+                "Plan",
+                "-",
+                "-",
+                &reset_fallback,
+                status,
+                note,
+            ));
+        }
+    }
+}
+
+fn pick_preferred_trae_pack<'a>(usage_raw: Option<&'a Value>) -> Option<&'a Value> {
+    let packs = get_nested_value(usage_raw?, &["user_entitlement_pack_list"])?.as_array()?;
+    let priority = [6.0_f64, 4.0, 1.0, 9.0, 8.0, 0.0];
+
+    for product_type in priority {
+        for pack in packs {
+            let current_type = pick_first_number(
+                pack,
+                &[
+                    &["entitlement_base_info", "product_type"],
+                    &["product_type"],
+                ],
+            );
+            if current_type == Some(3.0) {
+                continue;
+            }
+            if current_type == Some(product_type) {
+                return Some(pack);
+            }
+        }
+    }
+
+    packs.first()
+}
+
+fn pick_trae_pack_reset(pack: &Value) -> Option<String> {
+    let raw = pick_first_number(pack, &[&["entitlement_base_info", "end_time"]])?;
+    if raw <= 0.0 {
+        return None;
+    }
+    let ts = (raw as i64).saturating_add(1);
+    let text = format_unix_timestamp(Some(ts));
+    if text == "-" {
+        None
+    } else {
+        Some(text)
     }
 }
 
@@ -1433,6 +1972,64 @@ fn extract_codebuddy_resources(account: &CodebuddyAccount) -> Vec<&serde_json::M
     }
 
     out
+}
+
+fn extract_workbuddy_resources(account: &WorkbuddyAccount) -> Vec<&serde_json::Map<String, Value>> {
+    let mut out = Vec::new();
+
+    if let Some(quota_raw) = account.quota_raw.as_ref() {
+        if let Some(list) = get_nested_value(
+            quota_raw,
+            &["userResource", "data", "Response", "Data", "Accounts"],
+        )
+        .and_then(Value::as_array)
+        {
+            for item in list {
+                if let Some(obj) = item.as_object() {
+                    out.push(obj);
+                }
+            }
+        }
+    }
+
+    if out.is_empty() {
+        if let Some(usage_raw) = account.usage_raw.as_ref() {
+            if let Some(list) =
+                get_nested_value(usage_raw, &["data", "Response", "Data", "Accounts"])
+                    .and_then(Value::as_array)
+            {
+                for item in list {
+                    if let Some(obj) = item.as_object() {
+                        out.push(obj);
+                    }
+                }
+            }
+        }
+    }
+
+    out
+}
+
+fn zed_display_name(account: &ZedAccount) -> String {
+    if let Some(name) = account
+        .display_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return name.to_string();
+    }
+    if !account.github_login.trim().is_empty() {
+        return account.github_login.clone();
+    }
+    if !account.user_id.trim().is_empty() {
+        return account.user_id.clone();
+    }
+    account.id.clone()
+}
+
+fn parse_numeric_text(value: Option<&str>) -> Option<f64> {
+    value.and_then(|raw| raw.trim().parse::<f64>().ok())
 }
 
 fn pick_number_in_item(item: &serde_json::Map<String, Value>, keys: &[&str]) -> Option<f64> {
@@ -1556,6 +2153,26 @@ fn clamp_percent(value: f64) -> f64 {
         return 0.0;
     }
     value.clamp(0.0, 100.0)
+}
+
+fn format_micros_usd(value: f64) -> String {
+    if !value.is_finite() {
+        return "-".to_string();
+    }
+    let usd = value / 1_000_000.0;
+    format!("${:.2}", usd)
+}
+
+fn format_number_compact(value: f64) -> String {
+    if !value.is_finite() {
+        return "-".to_string();
+    }
+    let normalized = if value.abs() < 0.000_001 { 0.0 } else { value };
+    if (normalized.fract()).abs() < f64::EPSILON {
+        format!("{:.0}", normalized)
+    } else {
+        format!("{:.2}", normalized)
+    }
 }
 
 fn percent_text(value: f64) -> String {
