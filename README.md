@@ -7,7 +7,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/jlcodes99/cockpit-tools?style=flat)](https://github.com/jlcodes99/cockpit-tools/releases)
 [![GitHub issues](https://img.shields.io/github/issues/jlcodes99/cockpit-tools)](https://github.com/jlcodes99/cockpit-tools/issues)
 
-> 📢 主页广告位：[香子栗卡网](https://xiangzili.xyz)（作者自营），目前提供 Gemini Pro 成品号与 Plus 兑换码，感谢大家长期支持。
+> 📢 主页广告位：[https://xiangzili.xyz](https://xiangzili.xyz)（作者自营买号地址），目前提供 Gemini Pro 成品号与 Plus 兑换码，感谢大家长期支持；另外如有合适的卡商资源，也欢迎联系我合作。
 
 一款**通用的 AI IDE 账号管理工具**，目前支持 **Antigravity**、**Codex**、**GitHub Copilot**、**Windsurf**、**Kiro**、**Cursor**、**Gemini Cli**、**CodeBuddy**、**CodeBuddy CN**、**Qoder**、**Trae** 和 **Zed**，并支持多账号多实例并行运行。
 
