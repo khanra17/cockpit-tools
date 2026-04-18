@@ -7,6 +7,17 @@ All notable changes to Cockpit Tools will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
+## [0.22.1] - 2026-04-18
+
+### Added
+- **Account overview pages now support platform-scoped filter persistence (disabled by default)**: Quick Settings adds a `Remember overview filters (except search)` toggle, and when enabled the app persists per-platform view mode, tag/group filters, and sort preferences.
+- **Backend OAuth token keeper is now enabled for long-running desktop sessions**: Cockpit starts a periodic token keepalive worker on app startup and refreshes near-expiry OAuth tokens across supported providers with backoff and tray-state refresh hooks.
+
+### Changed
+- **Antigravity auto-switch now supports Credits threshold triggers in addition to quota thresholds**: Settings and Quick Settings add Credits monitoring controls, trigger reasons now include credits context, and candidate ranking now prefers higher quota then higher remaining Credits.
+- **Codex API Service card now stays fixed as the first entry card across overview layouts**: the service card no longer gets split into a separate region, empty-state actions now use a centered `Add Account` CTA, and plan badges in the member picker are aligned with account-page badge styling.
+
+---
 ## [0.22.0] - 2026-04-18
 
 ### Added

@@ -1016,11 +1016,13 @@
       "originPlugin": "Estensione",
       "originUnknown": "Sconosciuto",
       "autoReasonLabel": "Motivo automatico: {{reason}}",
-      "autoReason": "Regola: {{rule}}; soglia: {{threshold}}%; ambito: {{scope}}; gruppi monitorati: {{selectedGroups}}; gruppi colpiti: {{hitGroups}}; candidati: {{candidates}}",
+      "autoReason": "Regola: {{rule}}; soglia quota: {{quotaThreshold}}%; soglia crediti: {{creditsThreshold}}; ambito: {{scope}}; gruppi monitorati: {{selectedGroups}}; gruppi colpiti: {{hitGroups}}; crediti attuali: {{currentCredits}}; account candidati: {{candidates}}",
       "autoReasonUnknown": "È stato attivato il cambio automatico, ma non è stato registrato un motivo dettagliato",
       "autoReasonRuleCurrentDisabled": "L’account corrente è disabilitato",
       "autoReasonRuleQuotaForbidden": "La quota dell’account corrente è limitata",
+      "autoReasonRuleGroupAndCreditsBelowThreshold": "Gruppo modelli e crediti entrambi sotto soglia",
       "autoReasonRuleGroupBelowThreshold": "Gruppo di modelli sotto soglia",
+      "autoReasonRuleCreditsBelowThreshold": "Crediti rimanenti sotto soglia",
       "autoReasonScopeAnyGroup": "Qualsiasi gruppo di modelli",
       "autoReasonScopeSelectedGroups": "Gruppi di modelli selezionati",
       "stageResult": "Locale: {{local}} / Fluido: {{seamless}}",
@@ -2268,7 +2270,10 @@
       "enable": "Cambio automatico",
       "threshold": "Soglia di cambio",
       "thresholdDesc": "Il cambio automatico si attiva quando i gruppi di modelli monitorati raggiungono questa soglia percentuale",
-      "hint": "Passa automaticamente all’account con quota più alta quando i gruppi di modelli monitorati raggiungono la soglia.",
+      "hint": "Passa automaticamente quando i gruppi di modelli monitorati raggiungono la soglia; con il monitoraggio crediti attivo si attiva anche quando i crediti rimanenti scendono sotto la soglia.",
+      "creditsEnable": "Monitora crediti",
+      "creditsThreshold": "Soglia crediti",
+      "creditsThresholdDesc": "Attiva anche il cambio automatico quando i crediti rimanenti sono pari o inferiori a questo valore",
       "triggerModel": "Modello di attivazione",
       "scopeAnyGroup": "Qualsiasi gruppo di modelli",
       "scopeSelectedGroups": "Gruppi di modelli selezionati",
@@ -2286,6 +2291,7 @@
     "apply": "Applica",
     "inputMinutes": "Inserire i minuti",
     "inputPercent": "Inserire la percentuale",
+    "inputCredits": "Inserire i crediti",
     "windsurf": {
       "title": "Impostazioni Windsurf",
       "appPath": "Percorso Windsurf"
@@ -2335,6 +2341,11 @@
     "zed": {
       "title": "Impostazioni Zed",
       "appPath": "Percorso Zed"
+    },
+    "filterPersistence": {
+      "title": "Memoria filtri",
+      "enable": "Ricorda i filtri della panoramica account (esclusa la ricerca)",
+      "hint": "Disattivato per impostazione predefinita. Se attivato, ogni piattaforma mantiene filtri, tag e ordinamento."
     }
   },
   "quotaAlert": {

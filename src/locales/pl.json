@@ -1016,11 +1016,13 @@
       "originPlugin": "Rozszerzenie",
       "originUnknown": "Nieznane",
       "autoReasonLabel": "Powód automatyczny: {{reason}}",
-      "autoReason": "Reguła: {{rule}}; próg: {{threshold}}%; zakres: {{scope}}; monitorowane grupy: {{selectedGroups}}; trafione grupy: {{hitGroups}}; kandydaci: {{candidates}}",
+      "autoReason": "Reguła: {{rule}}; próg limitu: {{quotaThreshold}}%; próg kredytów: {{creditsThreshold}}; zakres: {{scope}}; monitorowane grupy: {{selectedGroups}}; trafione grupy: {{hitGroups}}; bieżące kredyty: {{currentCredits}}; kandydaci: {{candidates}}",
       "autoReasonUnknown": "Uruchomiono automatyczne przełączenie, ale nie zapisano szczegółowego powodu",
       "autoReasonRuleCurrentDisabled": "Bieżące konto jest wyłączone",
       "autoReasonRuleQuotaForbidden": "Limit bieżącego konta jest ograniczony",
+      "autoReasonRuleGroupAndCreditsBelowThreshold": "Grupa modeli i kredyty są poniżej progu",
       "autoReasonRuleGroupBelowThreshold": "Grupa modeli poniżej progu",
+      "autoReasonRuleCreditsBelowThreshold": "Pozostałe kredyty są poniżej progu",
       "autoReasonScopeAnyGroup": "Dowolna grupa modeli",
       "autoReasonScopeSelectedGroups": "Wybrane grupy modeli",
       "stageResult": "Lokalnie: {{local}} / Płynnie: {{seamless}}",
@@ -2268,7 +2270,10 @@
       "enable": "Automatyczne przełączanie",
       "threshold": "Próg przełączania",
       "thresholdDesc": "Automatyczne przełączenie uruchamia się, gdy monitorowane grupy modeli osiągną ten próg procentowy",
-      "hint": "Automatycznie przełącza na konto z najwyższym limitem, gdy monitorowane grupy modeli osiągną próg.",
+      "hint": "Automatycznie przełącza, gdy monitorowane grupy modeli osiągną próg; przy włączonym monitorowaniu kredytów uruchomi się też wtedy, gdy pozostałe kredyty spadną poniżej progu.",
+      "creditsEnable": "Monitoruj kredyty",
+      "creditsThreshold": "Próg kredytów",
+      "creditsThresholdDesc": "Przełączaj także automatycznie, gdy pozostałe kredyty spadną do tej wartości lub niżej",
       "triggerModel": "Model wyzwalający",
       "scopeAnyGroup": "Dowolna grupa modeli",
       "scopeSelectedGroups": "Wybrane grupy modeli",
@@ -2286,6 +2291,7 @@
     "apply": "Zastosuj",
     "inputMinutes": "Wpisz minuty",
     "inputPercent": "Wpisz procent",
+    "inputCredits": "Wpisz kredyty",
     "windsurf": {
       "title": "Ustawienia Windsurf",
       "appPath": "Ścieżka Windsurf"
@@ -2335,6 +2341,11 @@
     "zed": {
       "title": "Ustawienia Zed",
       "appPath": "Ścieżka Zed"
+    },
+    "filterPersistence": {
+      "title": "Pamięć filtrów",
+      "enable": "Zapamiętaj filtry przeglądu kont (bez wyszukiwania)",
+      "hint": "Domyślnie wyłączone. Po włączeniu każda platforma zapamięta filtry, tagi i sortowanie."
     }
   },
   "quotaAlert": {

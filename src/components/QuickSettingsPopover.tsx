@@ -40,6 +40,11 @@ import {
 import type { Account } from '../types/account';
 import type { CodexAccount } from '../types/codex';
 import { getDisplayGroups, type DisplayGroup } from '../services/groupService';
+import {
+  readAccountsOverviewFilterPersistenceEnabled,
+  resolveAccountsOverviewScopeFromQuickSettingsType,
+  setAccountsOverviewFilterPersistenceEnabled,
+} from '../utils/accountsOverviewFilterPersistence';
 import './QuickSettingsPopover.css';
 
 /** GeneralConfig from backend */
@@ -86,6 +91,8 @@ interface GeneralConfig {
   antigravity_dual_switch_no_restart_enabled: boolean;
   auto_switch_enabled: boolean;
   auto_switch_threshold: number;
+  auto_switch_credits_enabled: boolean;
+  auto_switch_credits_threshold: number;
   auto_switch_scope_mode: string;
   auto_switch_selected_group_ids: string[];
   auto_switch_account_scope_mode?: string;
@@ -224,6 +231,14 @@ const normalizeAutoSwitchAccountScopeMode = (
 
 export function QuickSettingsPopover({ type }: QuickSettingsPopoverProps) {
   const { t } = useTranslation();
+  const overviewFilterScope = useMemo(
+    () => resolveAccountsOverviewScopeFromQuickSettingsType(type),
+    [type],
+  );
+  const [overviewFilterPersistenceEnabled, setOverviewFilterPersistenceEnabledState] =
+    useState<boolean>(() =>
+      readAccountsOverviewFilterPersistenceEnabled(overviewFilterScope),
+    );
   const [isOpen, setIsOpen] = useState(false);
   const [config, setConfig] = useState<GeneralConfig | null>(null);
   const [saving, setSaving] = useState(false);
@@ -233,10 +248,12 @@ export function QuickSettingsPopover({ type }: QuickSettingsPopoverProps) {
   const [refreshEditing, setRefreshEditing] = useState(false);
   const [currentAccountRefreshEditing, setCurrentAccountRefreshEditing] = useState(false);
   const [thresholdEditing, setThresholdEditing] = useState(false);
+  const [creditsThresholdEditing, setCreditsThresholdEditing] = useState(false);
   const [quotaAlertThresholdEditing, setQuotaAlertThresholdEditing] = useState(false);
   const [customRefresh, setCustomRefresh] = useState('');
   const [currentAccountCustomRefresh, setCurrentAccountCustomRefresh] = useState('');
   const [customThreshold, setCustomThreshold] = useState('');
+  const [customCreditsThreshold, setCustomCreditsThreshold] = useState('');
   const [quotaAlertCustomThreshold, setQuotaAlertCustomThreshold] = useState('');
   const [codexAutoSwitchPrimaryCustomThreshold, setCodexAutoSwitchPrimaryCustomThreshold] = useState('');
   const [codexAutoSwitchSecondaryCustomThreshold, setCodexAutoSwitchSecondaryCustomThreshold] = useState('');
@@ -258,6 +275,7 @@ export function QuickSettingsPopover({ type }: QuickSettingsPopoverProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const refreshPresets = ['-1', '2', '5', '10', '15'];
   const thresholdPresets = ['0', '20', '40', '60'];
+  const creditsThresholdPresets = ['0', '5', '10', '20'];
   const antigravityScopeTypeOptions = useMemo(
     () => buildAccountTierFilterOptions(t, buildAccountTierCounts(antigravityAccounts, {})),
     [antigravityAccounts, t],
@@ -311,14 +329,25 @@ export function QuickSettingsPopover({ type }: QuickSettingsPopoverProps) {
     [codexAccountGroups],
   );
 
+  const handleOverviewFilterPersistenceToggle = useCallback(
+    (checked: boolean) => {
+      setOverviewFilterPersistenceEnabledState(checked);
+      setAccountsOverviewFilterPersistenceEnabled(overviewFilterScope, checked);
+    },
+    [overviewFilterScope],
+  );
+
   // Load config when modal opens
   useEffect(() => {
     if (isOpen) {
       loadConfig();
       setCodexShowCodeReviewQuota(isCodexCodeReviewQuotaVisibleByDefault());
       setAntigravitySeamlessSwitchUnlocked(isAntigravitySeamlessSwitchFeatureUnlocked());
+      setOverviewFilterPersistenceEnabledState(
+        readAccountsOverviewFilterPersistenceEnabled(overviewFilterScope),
+      );
     }
-  }, [isOpen]);
+  }, [isOpen, overviewFilterScope]);
 
   useEffect(() => {
     const handleFeatureUnlockChanged = (event: Event) => {
@@ -492,6 +521,8 @@ export function QuickSettingsPopover({ type }: QuickSettingsPopoverProps) {
           antigravityDualSwitchNoRestartEnabled: merged.antigravity_dual_switch_no_restart_enabled,
           autoSwitchEnabled: merged.auto_switch_enabled,
           autoSwitchThreshold: merged.auto_switch_threshold,
+          autoSwitchCreditsEnabled: merged.auto_switch_credits_enabled,
+          autoSwitchCreditsThreshold: merged.auto_switch_credits_threshold,
           autoSwitchScopeMode: merged.auto_switch_scope_mode,
           autoSwitchSelectedGroupIds: merged.auto_switch_selected_group_ids,
           autoSwitchAccountScopeMode: merged.auto_switch_account_scope_mode,
@@ -927,6 +958,12 @@ export function QuickSettingsPopover({ type }: QuickSettingsPopoverProps) {
 
   const isThresholdPreset = config ? thresholdPresets.includes(String(config.auto_switch_threshold)) : true;
   const showThresholdInput = thresholdEditing;
+  const creditsAutoSwitchEnabled = config?.auto_switch_credits_enabled ?? false;
+  const creditsAutoSwitchThresholdValue = config ? Number(config.auto_switch_credits_threshold) : 5;
+  const isCreditsThresholdPreset = creditsThresholdPresets.includes(
+    String(creditsAutoSwitchThresholdValue),
+  );
+  const showCreditsThresholdInput = creditsThresholdEditing;
   const autoSwitchScopeMode = config?.auto_switch_scope_mode === 'selected_groups'
     ? 'selected_groups'
     : 'any_group';
@@ -1053,6 +1090,29 @@ export function QuickSettingsPopover({ type }: QuickSettingsPopoverProps) {
     }
     setCustomThreshold('');
     setThresholdEditing(false);
+  };
+
+  const handleCreditsThresholdSelectChange = (val: string) => {
+    if (val === 'custom') {
+      setCustomCreditsThreshold(String(creditsAutoSwitchThresholdValue));
+      setCreditsThresholdEditing(true);
+      return;
+    }
+    setCustomCreditsThreshold('');
+    setCreditsThresholdEditing(false);
+    saveConfig({ auto_switch_credits_threshold: parseInt(val, 10) });
+  };
+
+  const handleCustomCreditsThresholdApply = () => {
+    const parsed = parseInt(customCreditsThreshold, 10);
+    if (!isNaN(parsed) && parsed >= 0) {
+      saveConfig({ auto_switch_credits_threshold: parsed });
+      setCustomCreditsThreshold('');
+      setCreditsThresholdEditing(false);
+      return;
+    }
+    setCustomCreditsThreshold('');
+    setCreditsThresholdEditing(false);
   };
 
   const handleAutoSwitchScopeModeChange = (value: string) => {
@@ -1457,6 +1517,41 @@ export function QuickSettingsPopover({ type }: QuickSettingsPopoverProps) {
                       '需先开启“配额自动刷新”后，才能设置当前账号刷新。',
                     )}
                 </div>
+              </div>
+            </div>
+
+            <div className="qs-section">
+              <div className="qs-section-header">
+                <Settings size={15} />
+                <span>{t('quickSettings.filterPersistence.title', '筛选记忆')}</span>
+              </div>
+              <div className="qs-row">
+                <div className="qs-row-label">
+                  <span>
+                    {t(
+                      'quickSettings.filterPersistence.enable',
+                      '记住账号总览筛选（不含搜索）',
+                    )}
+                  </span>
+                </div>
+                <div className="qs-row-control">
+                  <label className="qs-switch">
+                    <input
+                      type="checkbox"
+                      checked={overviewFilterPersistenceEnabled}
+                      onChange={(event) =>
+                        handleOverviewFilterPersistenceToggle(event.target.checked)
+                      }
+                    />
+                    <span className="qs-switch-slider"></span>
+                  </label>
+                </div>
+              </div>
+              <div className="qs-hint">
+                {t(
+                  'quickSettings.filterPersistence.hint',
+                  '默认关闭。开启后会按平台记住筛选、标签和排序。',
+                )}
               </div>
             </div>
 
@@ -2017,6 +2112,72 @@ export function QuickSettingsPopover({ type }: QuickSettingsPopoverProps) {
 
                     <div className="qs-row">
                       <div className="qs-row-label">
+                        <span>{t('quickSettings.autoSwitch.creditsEnable', '监控 Credits')}</span>
+                      </div>
+                      <div className="qs-row-control">
+                        <label className="qs-switch">
+                          <input
+                            type="checkbox"
+                            checked={creditsAutoSwitchEnabled}
+                            onChange={(e) =>
+                              saveConfig({ auto_switch_credits_enabled: e.target.checked })
+                            }
+                          />
+                          <span className="qs-switch-slider"></span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {creditsAutoSwitchEnabled && (
+                      <div className="qs-row">
+                        <div className="qs-row-label">
+                          <span>{t('quickSettings.autoSwitch.creditsThreshold', 'Credits 阈值')}</span>
+                        </div>
+                        <div className="qs-row-control">
+                          {showCreditsThresholdInput ? (
+                            <div className="qs-inline-input">
+                              <input
+                                type="number"
+                                min={0}
+                                className="qs-select qs-select--input-mode"
+                                value={customCreditsThreshold}
+                                placeholder={t('quickSettings.inputCredits', '输入 Credits')}
+                                onChange={(e) =>
+                                  setCustomCreditsThreshold(e.target.value.replace(/[^\d]/g, ''))
+                                }
+                                onBlur={handleCustomCreditsThresholdApply}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleCustomCreditsThresholdApply();
+                                  }
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <select
+                              className="qs-select"
+                              value={String(creditsAutoSwitchThresholdValue)}
+                              onChange={(e) => handleCreditsThresholdSelectChange(e.target.value)}
+                            >
+                              {!isCreditsThresholdPreset && (
+                                <option value={String(creditsAutoSwitchThresholdValue)}>
+                                  {creditsAutoSwitchThresholdValue}
+                                </option>
+                              )}
+                              <option value="0">0</option>
+                              <option value="5">5</option>
+                              <option value="10">10</option>
+                              <option value="20">20</option>
+                              <option value="custom">{t('quickSettings.customInput', '自定义')}</option>
+                            </select>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="qs-row">
+                      <div className="qs-row-label">
                         <span>{t('quickSettings.autoSwitch.triggerModel', '触发模型')}</span>
                       </div>
                       <div className="qs-row-control">
@@ -2096,7 +2257,7 @@ export function QuickSettingsPopover({ type }: QuickSettingsPopoverProps) {
                 <div className="qs-hint">
                   {t(
                     'quickSettings.autoSwitch.hint',
-                    '当命中监控的模型分组阈值时，自动切换到配额最高的账号。'
+                    '命中监控的模型分组阈值时会自动切号；启用 Credits 监控后，剩余 Credits 低于阈值时也会触发。'
                   )}
                 </div>
 

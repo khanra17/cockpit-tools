@@ -1016,11 +1016,13 @@
       "originPlugin": "Extensão",
       "originUnknown": "Desconhecido",
       "autoReasonLabel": "Motivo automático: {{reason}}",
-      "autoReason": "Regra: {{rule}}; limite: {{threshold}}%; escopo: {{scope}}; grupos monitorados: {{selectedGroups}}; grupos atingidos: {{hitGroups}}; candidatos: {{candidates}}",
+      "autoReason": "Regra: {{rule}}; limite de cota: {{quotaThreshold}}%; limite de créditos: {{creditsThreshold}}; escopo: {{scope}}; grupos monitorados: {{selectedGroups}}; grupos atingidos: {{hitGroups}}; créditos atuais: {{currentCredits}}; contas candidatas: {{candidates}}",
       "autoReasonUnknown": "A troca automática foi acionada, mas nenhum motivo detalhado foi registrado",
       "autoReasonRuleCurrentDisabled": "A conta atual está desativada",
       "autoReasonRuleQuotaForbidden": "A cota da conta atual está restrita",
+      "autoReasonRuleGroupAndCreditsBelowThreshold": "Grupo de modelos e créditos abaixo do limite",
       "autoReasonRuleGroupBelowThreshold": "Grupo de modelos abaixo do limite",
+      "autoReasonRuleCreditsBelowThreshold": "Créditos restantes abaixo do limite",
       "autoReasonScopeAnyGroup": "Qualquer grupo de modelos",
       "autoReasonScopeSelectedGroups": "Grupos de modelos selecionados",
       "stageResult": "Local: {{local}} / Contínuo: {{seamless}}",
@@ -2268,7 +2270,10 @@
       "enable": "Troca automática",
       "threshold": "Limiar de troca",
       "thresholdDesc": "A troca automática é acionada quando os grupos de modelos monitorados atingem este limite percentual",
-      "hint": "Troca automaticamente para a conta com maior cota quando os grupos de modelos monitorados atingem o limite.",
+      "hint": "Troca automaticamente quando os grupos de modelos monitorados atingem o limite; com o monitoramento de créditos ativo, também dispara quando os créditos restantes ficam abaixo do limite.",
+      "creditsEnable": "Monitorar créditos",
+      "creditsThreshold": "Limite de créditos",
+      "creditsThresholdDesc": "Também trocar automaticamente quando os créditos restantes estiverem nesse valor ou abaixo",
       "triggerModel": "Modelo de acionamento",
       "scopeAnyGroup": "Qualquer grupo de modelos",
       "scopeSelectedGroups": "Grupos de modelos selecionados",
@@ -2286,6 +2291,7 @@
     "apply": "Aplicar",
     "inputMinutes": "Digite os minutos",
     "inputPercent": "Digite a porcentagem",
+    "inputCredits": "Digite os créditos",
     "windsurf": {
       "title": "Configurações do Windsurf",
       "appPath": "Caminho do Windsurf"
@@ -2335,6 +2341,11 @@
     "zed": {
       "title": "Configurações do Zed",
       "appPath": "Caminho do Zed"
+    },
+    "filterPersistence": {
+      "title": "Memória de filtros",
+      "enable": "Lembrar filtros da visão geral de contas (sem busca)",
+      "hint": "Desativado por padrão. Ao ativar, cada plataforma mantém filtros, tags e ordenação."
     }
   },
   "quotaAlert": {

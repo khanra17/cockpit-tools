@@ -1016,11 +1016,13 @@
       "originPlugin": "Tiện ích mở rộng",
       "originUnknown": "Không xác định",
       "autoReasonLabel": "Lý do tự động: {{reason}}",
-      "autoReason": "Quy tắc: {{rule}}; ngưỡng: {{threshold}}%; phạm vi: {{scope}}; nhóm theo dõi: {{selectedGroups}}; nhóm trúng ngưỡng: {{hitGroups}}; tài khoản ứng viên: {{candidates}}",
+      "autoReason": "Quy tắc: {{rule}}; ngưỡng quota: {{quotaThreshold}}%; ngưỡng credits: {{creditsThreshold}}; phạm vi: {{scope}}; nhóm theo dõi: {{selectedGroups}}; nhóm trúng ngưỡng: {{hitGroups}}; credits hiện tại: {{currentCredits}}; tài khoản ứng viên: {{candidates}}",
       "autoReasonUnknown": "Đã kích hoạt chuyển tự động nhưng không ghi lại lý do chi tiết",
       "autoReasonRuleCurrentDisabled": "Tài khoản hiện tại đã bị vô hiệu hóa",
       "autoReasonRuleQuotaForbidden": "Hạn mức của tài khoản hiện tại bị hạn chế",
+      "autoReasonRuleGroupAndCreditsBelowThreshold": "Nhóm mô hình và credits đều thấp hơn ngưỡng",
       "autoReasonRuleGroupBelowThreshold": "Nhóm mô hình thấp hơn ngưỡng",
+      "autoReasonRuleCreditsBelowThreshold": "Credits còn lại thấp hơn ngưỡng",
       "autoReasonScopeAnyGroup": "Bất kỳ nhóm mô hình nào",
       "autoReasonScopeSelectedGroups": "Nhóm mô hình đã chọn",
       "stageResult": "Cục bộ: {{local}} / Liền mạch: {{seamless}}",
@@ -2268,7 +2270,10 @@
       "enable": "Tự động chuyển đổi",
       "threshold": "Ngưỡng chuyển đổi",
       "thresholdDesc": "Tự động chuyển sẽ kích hoạt khi các nhóm mô hình đang theo dõi chạm ngưỡng phần trăm này",
-      "hint": "Tự động chuyển sang tài khoản có hạn mức cao nhất khi các nhóm mô hình đang theo dõi chạm ngưỡng.",
+      "hint": "Tự động chuyển khi các nhóm mô hình đang theo dõi chạm ngưỡng; nếu bật theo dõi credits, nó cũng sẽ kích hoạt khi credits còn lại thấp hơn ngưỡng.",
+      "creditsEnable": "Theo dõi credits",
+      "creditsThreshold": "Ngưỡng credits",
+      "creditsThresholdDesc": "Cũng tự động chuyển khi credits còn lại nhỏ hơn hoặc bằng giá trị này",
       "triggerModel": "Mô hình kích hoạt",
       "scopeAnyGroup": "Bất kỳ nhóm mô hình nào",
       "scopeSelectedGroups": "Nhóm mô hình đã chọn",
@@ -2286,6 +2291,7 @@
     "apply": "Áp dụng",
     "inputMinutes": "Nhập số phút",
     "inputPercent": "Nhập phần trăm",
+    "inputCredits": "Nhập credits",
     "windsurf": {
       "title": "Cài đặt Windsurf",
       "appPath": "Đường dẫn Windsurf"
@@ -2335,6 +2341,11 @@
     "zed": {
       "title": "Cài đặt Zed",
       "appPath": "Đường dẫn Zed"
+    },
+    "filterPersistence": {
+      "title": "Ghi nhớ bộ lọc",
+      "enable": "Ghi nhớ bộ lọc tổng quan tài khoản (không gồm tìm kiếm)",
+      "hint": "Mặc định tắt. Khi bật, mỗi nền tảng sẽ giữ bộ lọc, thẻ và thứ tự sắp xếp."
     }
   },
   "quotaAlert": {

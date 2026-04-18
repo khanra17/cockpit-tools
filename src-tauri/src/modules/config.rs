@@ -238,6 +238,12 @@ pub struct UserConfig {
     /// 自动切号阈值（百分比），任意模型配额低于此值触发
     #[serde(default = "default_auto_switch_threshold")]
     pub auto_switch_threshold: i32,
+    /// 是否启用 Credits 阈值自动切号
+    #[serde(default = "default_auto_switch_credits_enabled")]
+    pub auto_switch_credits_enabled: bool,
+    /// Credits 自动切号阈值（剩余值）
+    #[serde(default = "default_auto_switch_credits_threshold")]
+    pub auto_switch_credits_threshold: i32,
     /// 自动切号触发模式：any_group | selected_groups
     #[serde(default = "default_auto_switch_scope_mode")]
     pub auto_switch_scope_mode: String,
@@ -590,6 +596,12 @@ fn default_auto_switch_enabled() -> bool {
 fn default_auto_switch_threshold() -> i32 {
     5
 }
+fn default_auto_switch_credits_enabled() -> bool {
+    false
+}
+fn default_auto_switch_credits_threshold() -> i32 {
+    5
+}
 fn default_auto_switch_scope_mode() -> String {
     "any_group".to_string()
 }
@@ -774,6 +786,8 @@ impl Default for UserConfig {
                 default_antigravity_dual_switch_no_restart_enabled(),
             auto_switch_enabled: default_auto_switch_enabled(),
             auto_switch_threshold: default_auto_switch_threshold(),
+            auto_switch_credits_enabled: default_auto_switch_credits_enabled(),
+            auto_switch_credits_threshold: default_auto_switch_credits_threshold(),
             auto_switch_scope_mode: default_auto_switch_scope_mode(),
             auto_switch_selected_group_ids: default_auto_switch_selected_group_ids(),
             auto_switch_account_scope_mode: default_auto_switch_account_scope_mode(),
@@ -1272,6 +1286,18 @@ pub fn load_user_config() -> Result<UserConfig, String> {
             obj.insert(
                 "auto_switch_scope_mode".to_string(),
                 json!(default_auto_switch_scope_mode()),
+            );
+        }
+        if !obj.contains_key("auto_switch_credits_enabled") {
+            obj.insert(
+                "auto_switch_credits_enabled".to_string(),
+                json!(default_auto_switch_credits_enabled()),
+            );
+        }
+        if !obj.contains_key("auto_switch_credits_threshold") {
+            obj.insert(
+                "auto_switch_credits_threshold".to_string(),
+                json!(default_auto_switch_credits_threshold()),
             );
         }
         if !obj.contains_key("auto_switch_selected_group_ids") {

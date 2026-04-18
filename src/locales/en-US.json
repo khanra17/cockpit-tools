@@ -1000,11 +1000,13 @@
       "originPlugin": "Plugin",
       "originUnknown": "Unknown",
       "autoReasonLabel": "Auto reason: {{reason}}",
-      "autoReason": "Rule: {{rule}}; threshold: {{threshold}}%; scope: {{scope}}; monitored groups: {{selectedGroups}}; hit groups: {{hitGroups}}; candidates: {{candidates}}",
+      "autoReason": "Rule: {{rule}}; quota threshold: {{quotaThreshold}}%; credits threshold: {{creditsThreshold}}; scope: {{scope}}; monitored groups: {{selectedGroups}}; hit groups: {{hitGroups}}; current credits: {{currentCredits}}; candidates: {{candidates}}",
       "autoReasonUnknown": "Auto switch triggered, but no detailed reason was recorded",
       "autoReasonRuleCurrentDisabled": "Current account is disabled",
       "autoReasonRuleQuotaForbidden": "Current account quota is forbidden",
+      "autoReasonRuleGroupAndCreditsBelowThreshold": "Model groups and credits are both below threshold",
       "autoReasonRuleGroupBelowThreshold": "Model group below threshold",
+      "autoReasonRuleCreditsBelowThreshold": "Remaining credits below threshold",
       "autoReasonScopeAnyGroup": "Any model group",
       "autoReasonScopeSelectedGroups": "Selected model groups",
       "stageResult": "Local: {{local}} / Seamless: {{seamless}}",
@@ -2414,12 +2416,15 @@
       "enable": "Enable Auto Switch",
       "threshold": "Switch Threshold",
       "thresholdDesc": "Auto switch when monitored model groups hit this percentage threshold",
+      "creditsEnable": "Monitor Credits",
+      "creditsThreshold": "Credits Threshold",
+      "creditsThresholdDesc": "Also auto switch when remaining credits are at or below this value",
       "triggerModel": "Trigger Model",
       "scopeAnyGroup": "Any model group",
       "scopeSelectedGroups": "Selected model groups",
       "selectedGroups": "Selected groups",
       "selectedGroupsEmpty": "No model groups available",
-      "hint": "Automatically switch to the account with the highest quota when monitored model groups hit the threshold."
+      "hint": "Auto switch when monitored model groups hit the threshold; if credits monitoring is enabled, it also triggers when remaining credits fall below the threshold."
     },
     "quotaAlert": {
       "title": "Quota Alert",
@@ -2428,10 +2433,16 @@
       "thresholdDesc": "Trigger alert when any model quota falls below this percentage",
       "hint": "When any current-account model quota drops below the threshold, send a native notification and show a quick-switch action in the app."
     },
+    "filterPersistence": {
+      "title": "Filter Memory",
+      "enable": "Remember overview filters (excluding search)",
+      "hint": "Off by default. When enabled, each platform keeps filter, tag, and sort selections."
+    },
     "customInput": "Custom",
     "apply": "Apply",
     "inputMinutes": "Enter minutes",
     "inputPercent": "Enter percentage",
+    "inputCredits": "Enter credits",
     "windsurf": {
       "title": "Windsurf Settings",
       "appPath": "Windsurf Path"

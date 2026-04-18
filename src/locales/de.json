@@ -1016,11 +1016,13 @@
       "originPlugin": "Erweiterung",
       "originUnknown": "Unbekannt",
       "autoReasonLabel": "Automatischer Grund: {{reason}}",
-      "autoReason": "Regel: {{rule}}; Schwelle: {{threshold}}%; Bereich: {{scope}}; Überwachte Gruppen: {{selectedGroups}}; Treffergruppen: {{hitGroups}}; Kandidaten: {{candidates}}",
+      "autoReason": "Regel: {{rule}}; Quota-Schwelle: {{quotaThreshold}}%; Credits-Schwelle: {{creditsThreshold}}; Bereich: {{scope}}; überwachte Gruppen: {{selectedGroups}}; Treffergruppen: {{hitGroups}}; aktuelle Credits: {{currentCredits}}; Kandidaten: {{candidates}}",
       "autoReasonUnknown": "Automatischer Wechsel wurde ausgelöst, aber es wurde kein detaillierter Grund aufgezeichnet",
       "autoReasonRuleCurrentDisabled": "Aktuelles Konto ist deaktiviert",
       "autoReasonRuleQuotaForbidden": "Kontingent des aktuellen Kontos ist gesperrt",
+      "autoReasonRuleGroupAndCreditsBelowThreshold": "Modellgruppe und Credits liegen beide unter dem Schwellenwert",
       "autoReasonRuleGroupBelowThreshold": "Modellgruppe unter Schwellenwert",
+      "autoReasonRuleCreditsBelowThreshold": "Verbleibende Credits liegen unter dem Schwellenwert",
       "autoReasonScopeAnyGroup": "Beliebige Modellgruppe",
       "autoReasonScopeSelectedGroups": "Ausgewählte Modellgruppen",
       "stageResult": "Lokal: {{local}} / Nahtlos: {{seamless}}",
@@ -2268,7 +2270,10 @@
       "enable": "Automatisch wechseln",
       "threshold": "Wechselschwelle",
       "thresholdDesc": "Automatischer Wechsel wird ausgelöst, wenn überwachte Modellgruppen diesen Prozentsatz erreichen",
-      "hint": "Wechselt automatisch zum Konto mit dem höchsten Kontingent, wenn überwachte Modellgruppen den Schwellenwert erreichen.",
+      "hint": "Es wird automatisch gewechselt, wenn überwachte Modellgruppen den Schwellenwert erreichen; bei aktivierter Credits-Überwachung auch dann, wenn die verbleibenden Credits unter den Schwellenwert fallen.",
+      "creditsEnable": "Credits überwachen",
+      "creditsThreshold": "Credits-Schwelle",
+      "creditsThresholdDesc": "Auch automatisch wechseln, wenn die verbleibenden Credits diesen Wert oder weniger erreichen",
       "triggerModel": "Auslösemodell",
       "scopeAnyGroup": "Beliebige Modellgruppe",
       "scopeSelectedGroups": "Ausgewählte Modellgruppen",
@@ -2286,6 +2291,7 @@
     "apply": "Anwenden",
     "inputMinutes": "Minuten eingeben",
     "inputPercent": "Prozentsatz eingeben",
+    "inputCredits": "Credits eingeben",
     "windsurf": {
       "title": "Windsurf-Einstellungen",
       "appPath": "Windsurf-Pfad"
@@ -2335,6 +2341,11 @@
     "zed": {
       "title": "Zed-Einstellungen",
       "appPath": "Zed-Pfad"
+    },
+    "filterPersistence": {
+      "title": "Filter-Merker",
+      "enable": "Filter in der Kontoübersicht merken (ohne Suche)",
+      "hint": "Standardmäßig aus. Wenn aktiviert, werden Filter, Tags und Sortierung pro Plattform gespeichert."
     }
   },
   "quotaAlert": {

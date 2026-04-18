@@ -152,6 +152,10 @@ pub struct GeneralConfig {
     pub auto_switch_enabled: bool,
     /// 自动切号阈值（百分比）
     pub auto_switch_threshold: i32,
+    /// 是否启用 Credits 阈值自动切号
+    pub auto_switch_credits_enabled: bool,
+    /// Credits 自动切号阈值（剩余值）
+    pub auto_switch_credits_threshold: i32,
     /// 自动切号触发模式：any_group | selected_groups
     pub auto_switch_scope_mode: String,
     /// 自动切号指定模型分组（分组 ID）
@@ -724,6 +728,8 @@ pub fn save_network_config(
             .antigravity_dual_switch_no_restart_enabled,
         auto_switch_enabled: current.auto_switch_enabled,
         auto_switch_threshold: current.auto_switch_threshold,
+        auto_switch_credits_enabled: current.auto_switch_credits_enabled,
+        auto_switch_credits_threshold: current.auto_switch_credits_threshold,
         auto_switch_scope_mode: current.auto_switch_scope_mode,
         auto_switch_selected_group_ids: current.auto_switch_selected_group_ids,
         auto_switch_account_scope_mode: current.auto_switch_account_scope_mode,
@@ -979,6 +985,8 @@ pub fn get_general_config(app: tauri::AppHandle) -> Result<GeneralConfig, String
             .antigravity_dual_switch_no_restart_enabled,
         auto_switch_enabled: user_config.auto_switch_enabled,
         auto_switch_threshold: user_config.auto_switch_threshold,
+        auto_switch_credits_enabled: user_config.auto_switch_credits_enabled,
+        auto_switch_credits_threshold: user_config.auto_switch_credits_threshold,
         auto_switch_scope_mode: user_config.auto_switch_scope_mode,
         auto_switch_selected_group_ids: user_config.auto_switch_selected_group_ids,
         auto_switch_account_scope_mode: user_config.auto_switch_account_scope_mode,
@@ -1095,6 +1103,8 @@ pub fn save_general_config(
     antigravity_dual_switch_no_restart_enabled: Option<bool>,
     auto_switch_enabled: Option<bool>,
     auto_switch_threshold: Option<i32>,
+    auto_switch_credits_enabled: Option<bool>,
+    auto_switch_credits_threshold: Option<i32>,
     auto_switch_scope_mode: Option<String>,
     auto_switch_selected_group_ids: Option<Vec<String>>,
     auto_switch_account_scope_mode: Option<String>,
@@ -1299,6 +1309,10 @@ pub fn save_general_config(
             .unwrap_or(current.antigravity_dual_switch_no_restart_enabled),
         auto_switch_enabled: auto_switch_enabled.unwrap_or(current.auto_switch_enabled),
         auto_switch_threshold: auto_switch_threshold.unwrap_or(current.auto_switch_threshold),
+        auto_switch_credits_enabled: auto_switch_credits_enabled
+            .unwrap_or(current.auto_switch_credits_enabled),
+        auto_switch_credits_threshold: auto_switch_credits_threshold
+            .unwrap_or(current.auto_switch_credits_threshold),
         auto_switch_scope_mode: auto_switch_scope_mode
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty())

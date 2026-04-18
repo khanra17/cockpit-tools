@@ -1016,11 +1016,13 @@
       "originPlugin": "拡張機能",
       "originUnknown": "不明",
       "autoReasonLabel": "自動理由: {{reason}}",
-      "autoReason": "ルール: {{rule}}；しきい値: {{threshold}}%；範囲: {{scope}}；監視グループ: {{selectedGroups}}；命中グループ: {{hitGroups}}；候補アカウント: {{candidates}}",
+      "autoReason": "ルール: {{rule}}；クォータしきい値: {{quotaThreshold}}%；Credits しきい値: {{creditsThreshold}}；範囲: {{scope}}；監視グループ: {{selectedGroups}}；命中グループ: {{hitGroups}}；現在の Credits: {{currentCredits}}；候補アカウント: {{candidates}}",
       "autoReasonUnknown": "自動切替は実行されましたが、詳細な理由は記録されていません",
       "autoReasonRuleCurrentDisabled": "現在のアカウントは無効です",
       "autoReasonRuleQuotaForbidden": "現在のアカウントのクォータは制限されています",
+      "autoReasonRuleGroupAndCreditsBelowThreshold": "モデルグループと Credits の両方がしきい値を下回っています",
       "autoReasonRuleGroupBelowThreshold": "モデルグループがしきい値未満",
+      "autoReasonRuleCreditsBelowThreshold": "残り Credits がしきい値を下回っています",
       "autoReasonScopeAnyGroup": "任意のモデルグループ",
       "autoReasonScopeSelectedGroups": "指定したモデルグループ",
       "stageResult": "ローカル: {{local}} / シームレス: {{seamless}}",
@@ -2268,7 +2270,10 @@
       "enable": "自動切替",
       "threshold": "切替閾値",
       "thresholdDesc": "監視対象のモデルグループがこの割合に達したときに自動切替を実行します",
-      "hint": "監視対象のモデルグループがしきい値に達したとき、最もクォータが高いアカウントへ自動で切り替えます。",
+      "hint": "監視対象のモデルグループがしきい値に達すると自動切替します。Credits 監視を有効にすると、残り Credits がしきい値を下回った場合にも実行されます。",
+      "creditsEnable": "Credits を監視",
+      "creditsThreshold": "Credits しきい値",
+      "creditsThresholdDesc": "残り Credits がこの値以下になった場合も自動切替します",
       "triggerModel": "トリガーモデル",
       "scopeAnyGroup": "任意のモデルグループ",
       "scopeSelectedGroups": "指定したモデルグループ",
@@ -2286,6 +2291,7 @@
     "apply": "適用",
     "inputMinutes": "分数を入力",
     "inputPercent": "パーセントを入力",
+    "inputCredits": "Credits を入力",
     "windsurf": {
       "title": "Windsurf 設定",
       "appPath": "Windsurf パス"
@@ -2335,6 +2341,11 @@
     "zed": {
       "title": "Zed 設定",
       "appPath": "Zed パス"
+    },
+    "filterPersistence": {
+      "title": "フィルター記憶",
+      "enable": "アカウント概要のフィルターを記憶（検索を除く）",
+      "hint": "既定ではオフ。オンにすると、プラットフォームごとにフィルター・タグ・並び順を保持します。"
     }
   },
   "quotaAlert": {

@@ -1,8 +1,7 @@
 use crate::models::codex::{CodexAccount, CodexApiProviderMode};
 use crate::models::codex_local_access::{
-    CodexLocalAccessAccountStats, CodexLocalAccessCollection,
-    CodexLocalAccessRoutingStrategy, CodexLocalAccessState, CodexLocalAccessStats,
-    CodexLocalAccessUsageStats,
+    CodexLocalAccessAccountStats, CodexLocalAccessCollection, CodexLocalAccessRoutingStrategy,
+    CodexLocalAccessState, CodexLocalAccessStats, CodexLocalAccessUsageStats,
 };
 use crate::modules::atomic_write::write_string_atomic;
 use crate::modules::{codex_account, codex_oauth, logger};
@@ -305,9 +304,7 @@ fn resolve_remaining_quota(account: &CodexAccount) -> Option<i32> {
     percentages.into_iter().min()
 }
 
-fn build_routing_candidates(
-    ordered_account_ids: &[String],
-) -> Vec<RoutingCandidate> {
+fn build_routing_candidates(ordered_account_ids: &[String]) -> Vec<RoutingCandidate> {
     ordered_account_ids
         .iter()
         .map(|account_id| {
@@ -329,42 +326,47 @@ fn compare_routing_candidates(
 ) -> std::cmp::Ordering {
     use std::cmp::Ordering;
 
-    let compare_option_desc =
-        |a: Option<i32>, b: Option<i32>| match (a, b) {
-            (Some(left), Some(right)) => right.cmp(&left),
-            (Some(_), None) => Ordering::Less,
-            (None, Some(_)) => Ordering::Greater,
-            (None, None) => Ordering::Equal,
-        };
-    let compare_option_asc =
-        |a: Option<i32>, b: Option<i32>| match (a, b) {
-            (Some(left), Some(right)) => left.cmp(&right),
-            (Some(_), None) => Ordering::Less,
-            (None, Some(_)) => Ordering::Greater,
-            (None, None) => Ordering::Equal,
-        };
+    let compare_option_desc = |a: Option<i32>, b: Option<i32>| match (a, b) {
+        (Some(left), Some(right)) => right.cmp(&left),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => Ordering::Equal,
+    };
+    let compare_option_asc = |a: Option<i32>, b: Option<i32>| match (a, b) {
+        (Some(left), Some(right)) => left.cmp(&right),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => Ordering::Equal,
+    };
 
     let ordering = match strategy {
-        CodexLocalAccessRoutingStrategy::Auto => compare_option_desc(left.plan_rank, right.plan_rank)
-            .then_with(|| compare_option_desc(left.remaining_quota, right.remaining_quota)),
-        CodexLocalAccessRoutingStrategy::QuotaHighFirst => compare_option_desc(
-            left.remaining_quota,
-            right.remaining_quota,
-        )
-        .then_with(|| compare_option_desc(left.plan_rank, right.plan_rank)),
-        CodexLocalAccessRoutingStrategy::QuotaLowFirst => compare_option_asc(
-            left.remaining_quota,
-            right.remaining_quota,
-        )
-        .then_with(|| compare_option_desc(left.plan_rank, right.plan_rank)),
-        CodexLocalAccessRoutingStrategy::PlanHighFirst => compare_option_desc(left.plan_rank, right.plan_rank)
-            .then_with(|| compare_option_desc(left.remaining_quota, right.remaining_quota)),
-        CodexLocalAccessRoutingStrategy::PlanLowFirst => compare_option_asc(left.plan_rank, right.plan_rank)
-            .then_with(|| compare_option_desc(left.remaining_quota, right.remaining_quota)),
+        CodexLocalAccessRoutingStrategy::Auto => {
+            compare_option_desc(left.plan_rank, right.plan_rank)
+                .then_with(|| compare_option_desc(left.remaining_quota, right.remaining_quota))
+        }
+        CodexLocalAccessRoutingStrategy::QuotaHighFirst => {
+            compare_option_desc(left.remaining_quota, right.remaining_quota)
+                .then_with(|| compare_option_desc(left.plan_rank, right.plan_rank))
+        }
+        CodexLocalAccessRoutingStrategy::QuotaLowFirst => {
+            compare_option_asc(left.remaining_quota, right.remaining_quota)
+                .then_with(|| compare_option_desc(left.plan_rank, right.plan_rank))
+        }
+        CodexLocalAccessRoutingStrategy::PlanHighFirst => {
+            compare_option_desc(left.plan_rank, right.plan_rank)
+                .then_with(|| compare_option_desc(left.remaining_quota, right.remaining_quota))
+        }
+        CodexLocalAccessRoutingStrategy::PlanLowFirst => {
+            compare_option_asc(left.plan_rank, right.plan_rank)
+                .then_with(|| compare_option_desc(left.remaining_quota, right.remaining_quota))
+        }
     };
 
     ordering.then_with(|| {
-        let left_index = original_index.get(&left.account_id).copied().unwrap_or(usize::MAX);
+        let left_index = original_index
+            .get(&left.account_id)
+            .copied()
+            .unwrap_or(usize::MAX);
         let right_index = original_index
             .get(&right.account_id)
             .copied()
@@ -383,16 +385,18 @@ fn apply_routing_strategy(
         .map(|(index, account_id)| (account_id.clone(), index))
         .collect();
     let mut candidates = build_routing_candidates(account_ids);
-    candidates.sort_by(|left, right| {
-        compare_routing_candidates(left, right, strategy, &original_index)
-    });
+    candidates
+        .sort_by(|left, right| compare_routing_candidates(left, right, strategy, &original_index));
     candidates
         .into_iter()
         .map(|candidate| candidate.account_id)
         .collect()
 }
 
-fn pin_account_to_front(account_ids: Vec<String>, preferred_account_id: Option<&str>) -> Vec<String> {
+fn pin_account_to_front(
+    account_ids: Vec<String>,
+    preferred_account_id: Option<&str>,
+) -> Vec<String> {
     let Some(preferred_account_id) = preferred_account_id else {
         return account_ids;
     };
@@ -402,7 +406,10 @@ fn pin_account_to_front(account_ids: Vec<String>, preferred_account_id: Option<&
     }
 
     let mut ordered = Vec::with_capacity(account_ids.len());
-    if account_ids.iter().any(|account_id| account_id == preferred_account_id) {
+    if account_ids
+        .iter()
+        .any(|account_id| account_id == preferred_account_id)
+    {
         ordered.push(preferred_account_id.to_string());
     }
     for account_id in account_ids {
@@ -426,8 +433,7 @@ fn build_cooldown_unavailable_message(model_key: &str, wait: Duration) -> String
     } else {
         format!(
             "模型 {} 的可用账号均在冷却中，请 {} 后重试",
-            model_key,
-            wait_text,
+            model_key, wait_text,
         )
     }
 }
@@ -439,12 +445,7 @@ fn parse_codex_retry_after(status: StatusCode, error_body: &str) -> Option<Durat
 
     let payload = serde_json::from_str::<Value>(error_body).ok()?;
     let error = payload.get("error")?;
-    if error
-        .get("type")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        != Some("usage_limit_reached")
-    {
+    if error.get("type").and_then(Value::as_str).map(str::trim) != Some("usage_limit_reached") {
         return None;
     }
 
@@ -565,8 +566,7 @@ fn load_stats_from_disk() -> Result<CodexLocalAccessStats, String> {
 fn save_stats_to_disk(stats: &CodexLocalAccessStats) -> Result<(), String> {
     let path = local_access_stats_file_path()?;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("创建 API 服务统计目录失败: {}", e))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("创建 API 服务统计目录失败: {}", e))?;
     }
     let content = serde_json::to_string_pretty(stats)
         .map_err(|e| format!("序列化 API 服务统计失败: {}", e))?;
@@ -654,12 +654,9 @@ async fn set_model_cooldown(account_id: &str, model_key: &str, retry_after: Dura
     let now = now_ms();
     let next_retry_at_ms = now.saturating_add(retry_after.as_millis() as i64);
     prune_runtime_routing_state(&mut runtime, now);
-    runtime.model_cooldowns.insert(
-        cooldown_key,
-        AccountModelCooldown {
-            next_retry_at_ms,
-        },
-    );
+    runtime
+        .model_cooldowns
+        .insert(cooldown_key, AccountModelCooldown { next_retry_at_ms });
 }
 
 async fn get_model_cooldown_wait(account_id: &str, model_key: &str) -> Option<Duration> {
@@ -787,7 +784,11 @@ async fn ensure_runtime_loaded() -> Result<(), String> {
 async fn ensure_gateway_matches_runtime() -> Result<(), String> {
     let (collection, running, actual_port, stale_task) = {
         let mut runtime = gateway_runtime().lock().await;
-        let stale_task = if !runtime.running { runtime.task.take() } else { None };
+        let stale_task = if !runtime.running {
+            runtime.task.take()
+        } else {
+            None
+        };
         (
             runtime.collection.clone(),
             runtime.running,
@@ -911,7 +912,9 @@ fn apply_usage_stats(
         target.output_tokens = target.output_tokens.saturating_add(usage.output_tokens);
         target.total_tokens = target.total_tokens.saturating_add(usage.total_tokens);
         target.cached_tokens = target.cached_tokens.saturating_add(usage.cached_tokens);
-        target.reasoning_tokens = target.reasoning_tokens.saturating_add(usage.reasoning_tokens);
+        target.reasoning_tokens = target
+            .reasoning_tokens
+            .saturating_add(usage.reasoning_tokens);
     }
 }
 
@@ -929,7 +932,12 @@ async fn record_request_stats(
             runtime.stats.since = now;
         }
         runtime.stats.updated_at = now;
-        apply_usage_stats(&mut runtime.stats.totals, success, latency_ms, usage.as_ref());
+        apply_usage_stats(
+            &mut runtime.stats.totals,
+            success,
+            latency_ms,
+            usage.as_ref(),
+        );
 
         if let Some(account_id) = account_id {
             if let Some(account_stats) = runtime
@@ -942,7 +950,12 @@ async fn record_request_stats(
                     account_stats.email = email.to_string();
                 }
                 account_stats.updated_at = now;
-                apply_usage_stats(&mut account_stats.usage, success, latency_ms, usage.as_ref());
+                apply_usage_stats(
+                    &mut account_stats.usage,
+                    success,
+                    latency_ms,
+                    usage.as_ref(),
+                );
             } else {
                 let mut account_stats = CodexLocalAccessAccountStats {
                     account_id: account_id.to_string(),
@@ -950,7 +963,12 @@ async fn record_request_stats(
                     usage: CodexLocalAccessUsageStats::default(),
                     updated_at: now,
                 };
-                apply_usage_stats(&mut account_stats.usage, success, latency_ms, usage.as_ref());
+                apply_usage_stats(
+                    &mut account_stats.usage,
+                    success,
+                    latency_ms,
+                    usage.as_ref(),
+                );
                 runtime.stats.accounts.push(account_stats);
             }
         }
@@ -968,9 +986,7 @@ fn build_state_snapshot(runtime: &GatewayRuntime) -> CodexLocalAccessState {
         .as_ref()
         .map(|item| item.account_ids.len())
         .unwrap_or(0);
-    let base_url = collection
-        .as_ref()
-        .map(|item| build_base_url(item.port));
+    let base_url = collection.as_ref().map(|item| build_base_url(item.port));
 
     CodexLocalAccessState {
         collection,
@@ -1017,15 +1033,18 @@ pub async fn save_local_access_accounts(
 
     let mut collection = {
         let runtime = gateway_runtime().lock().await;
-        runtime.collection.clone().unwrap_or(CodexLocalAccessCollection {
-            enabled: true,
-            port: allocate_random_local_port()?,
-            api_key: generate_local_api_key(),
-            routing_strategy: CodexLocalAccessRoutingStrategy::default(),
-            account_ids: Vec::new(),
-            created_at: now_ms(),
-            updated_at: now_ms(),
-        })
+        runtime
+            .collection
+            .clone()
+            .unwrap_or(CodexLocalAccessCollection {
+                enabled: true,
+                port: allocate_random_local_port()?,
+                api_key: generate_local_api_key(),
+                routing_strategy: CodexLocalAccessRoutingStrategy::default(),
+                account_ids: Vec::new(),
+                created_at: now_ms(),
+                updated_at: now_ms(),
+            })
     };
 
     let valid_account_ids: HashSet<String> = codex_account::list_accounts_checked()?
@@ -1402,9 +1421,12 @@ fn build_local_models_response() -> Value {
 }
 
 fn usage_number(value: Option<&Value>) -> Option<u64> {
-    value
-        .and_then(Value::as_u64)
-        .or_else(|| value.and_then(Value::as_i64).filter(|number| *number >= 0).map(|number| number as u64))
+    value.and_then(Value::as_u64).or_else(|| {
+        value
+            .and_then(Value::as_i64)
+            .filter(|number| *number >= 0)
+            .map(|number| number as u64)
+    })
 }
 
 fn non_null_child<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
@@ -1414,61 +1436,78 @@ fn non_null_child<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
 fn extract_usage_capture(value: &Value) -> Option<UsageCapture> {
     let usage = non_null_child(value, "usage")
         .or_else(|| {
-            value.get("response")
+            value
+                .get("response")
                 .and_then(|item| non_null_child(item, "usage"))
         })
         .or_else(|| {
-            value.get("response")
+            value
+                .get("response")
                 .and_then(|item| item.get("response"))
                 .and_then(|item| non_null_child(item, "usage"))
         })
         .or_else(|| non_null_child(value, "usageMetadata"))
         .or_else(|| non_null_child(value, "usage_metadata"))
         .or_else(|| {
-            value.get("response")
+            value
+                .get("response")
                 .and_then(|item| non_null_child(item, "usageMetadata"))
         })
         .or_else(|| {
-            value.get("response")
+            value
+                .get("response")
                 .and_then(|item| non_null_child(item, "usage_metadata"))
         })?;
 
     let input_tokens = usage_number(
-        usage.get("input_tokens")
+        usage
+            .get("input_tokens")
             .or_else(|| usage.get("prompt_tokens"))
             .or_else(|| usage.get("promptTokenCount")),
     )
     .unwrap_or(0);
     let output_tokens = usage_number(
-        usage.get("output_tokens")
+        usage
+            .get("output_tokens")
             .or_else(|| usage.get("completion_tokens"))
             .or_else(|| usage.get("candidatesTokenCount")),
     )
     .unwrap_or(0);
-    let explicit_total_tokens =
-        usage_number(usage.get("total_tokens").or_else(|| usage.get("totalTokenCount")));
+    let explicit_total_tokens = usage_number(
+        usage
+            .get("total_tokens")
+            .or_else(|| usage.get("totalTokenCount")),
+    );
     let cached_tokens = usage_number(
-        usage.get("cached_tokens").or_else(|| {
-            usage.get("input_tokens_details")
-                .and_then(|item| item.get("cached_tokens"))
-        })
-        .or_else(|| {
-            usage.get("prompt_tokens_details")
-                .and_then(|item| item.get("cached_tokens"))
-        })
-        .or_else(|| usage.get("cachedContentTokenCount")),
+        usage
+            .get("cached_tokens")
+            .or_else(|| {
+                usage
+                    .get("input_tokens_details")
+                    .and_then(|item| item.get("cached_tokens"))
+            })
+            .or_else(|| {
+                usage
+                    .get("prompt_tokens_details")
+                    .and_then(|item| item.get("cached_tokens"))
+            })
+            .or_else(|| usage.get("cachedContentTokenCount")),
     )
     .unwrap_or(0);
     let reasoning_tokens = usage_number(
-        usage.get("reasoning_tokens").or_else(|| {
-            usage.get("output_tokens_details")
-                .and_then(|item| item.get("reasoning_tokens"))
-        })
-        .or_else(|| {
-            usage.get("completion_tokens_details")
-                .and_then(|item| item.get("reasoning_tokens"))
-        })
-        .or_else(|| usage.get("thoughtsTokenCount")),
+        usage
+            .get("reasoning_tokens")
+            .or_else(|| {
+                usage
+                    .get("output_tokens_details")
+                    .and_then(|item| item.get("reasoning_tokens"))
+            })
+            .or_else(|| {
+                usage
+                    .get("completion_tokens_details")
+                    .and_then(|item| item.get("reasoning_tokens"))
+            })
+            .or_else(|| usage.get("thoughtsTokenCount")),
     )
     .unwrap_or(0);
 
@@ -1491,7 +1530,8 @@ fn extract_response_id(value: &Value) -> Option<String> {
     non_null_child(value, "id")
         .and_then(Value::as_str)
         .or_else(|| {
-            value.get("response")
+            value
+                .get("response")
                 .and_then(|item| non_null_child(item, "id"))
                 .and_then(Value::as_str)
         })
@@ -1501,7 +1541,10 @@ fn extract_response_id(value: &Value) -> Option<String> {
 }
 
 fn should_treat_response_as_stream(content_type: &str, request_is_stream: bool) -> bool {
-    request_is_stream || content_type.to_ascii_lowercase().contains("text/event-stream")
+    request_is_stream
+        || content_type
+            .to_ascii_lowercase()
+            .contains("text/event-stream")
 }
 
 fn find_sse_frame_boundary(buffer: &[u8]) -> Option<(usize, usize)> {
@@ -1567,7 +1610,9 @@ impl ResponseUsageCollector {
 
     fn process_stream_buffer(&mut self, flush_tail: bool) {
         loop {
-            let Some((boundary_index, separator_len)) = find_sse_frame_boundary(&self.stream_buffer) else {
+            let Some((boundary_index, separator_len)) =
+                find_sse_frame_boundary(&self.stream_buffer)
+            else {
                 break;
             };
             let frame = self.stream_buffer[..boundary_index].to_vec();
@@ -1729,11 +1774,13 @@ fn should_try_next_account(status: StatusCode, body: &str) -> bool {
         || lower.contains("insufficient_quota")
         || lower.contains("quota exceeded")
         || lower.contains("quota exceeded");
-    let model_capacity = lower.contains("selected model is at capacity")
-        || lower.contains("model is at capacity");
+    let model_capacity =
+        lower.contains("selected model is at capacity") || lower.contains("model is at capacity");
 
-    matches!(status, StatusCode::TOO_MANY_REQUESTS | StatusCode::FORBIDDEN)
-        && (quota_exhausted || model_capacity)
+    matches!(
+        status,
+        StatusCode::TOO_MANY_REQUESTS | StatusCode::FORBIDDEN
+    ) && (quota_exhausted || model_capacity)
 }
 
 fn json_response(status: u16, status_text: &str, body: &Value) -> Vec<u8> {
@@ -1823,8 +1870,8 @@ async fn write_upstream_response(
 }
 
 async fn force_refresh_gateway_account(account_id: &str) -> Result<(), String> {
-    let mut account =
-        codex_account::load_account(account_id).ok_or_else(|| format!("账号不存在: {}", account_id))?;
+    let mut account = codex_account::load_account(account_id)
+        .ok_or_else(|| format!("账号不存在: {}", account_id))?;
     let refresh_token = account
         .tokens
         .refresh_token
@@ -1848,8 +1895,8 @@ async fn send_upstream_request(
     body: &[u8],
     account: &CodexAccount,
 ) -> Result<reqwest::Response, String> {
-    let method = Method::from_bytes(method.as_bytes())
-        .map_err(|e| format!("不支持的请求方法: {}", e))?;
+    let method =
+        Method::from_bytes(method.as_bytes()).map_err(|e| format!("不支持的请求方法: {}", e))?;
     let url = format!("{}{}", UPSTREAM_CODEX_BASE_URL, target);
     let client = reqwest::Client::new();
     let mut request = client.request(method, &url);
@@ -1964,7 +2011,8 @@ async fn proxy_request_with_account_pool(
                 break;
             }
 
-            if let Some(wait) = get_model_cooldown_wait(&account_id, &routing_hint.model_key).await {
+            if let Some(wait) = get_model_cooldown_wait(&account_id, &routing_hint.model_key).await
+            {
                 round_cooldown_wait = Some(match round_cooldown_wait {
                     Some(current) if current <= wait => current,
                     _ => wait,
@@ -2361,7 +2409,10 @@ mod tests {
 
     #[test]
     fn parses_sse_usage_when_request_is_stream_even_if_content_type_is_json() {
-        assert!(should_treat_response_as_stream("application/json; charset=utf-8", true));
+        assert!(should_treat_response_as_stream(
+            "application/json; charset=utf-8",
+            true
+        ));
 
         let mut collector = ResponseUsageCollector::new(true);
         collector.feed(

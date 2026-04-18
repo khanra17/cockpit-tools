@@ -1062,11 +1062,13 @@
       "originPlugin": "الإضافة",
       "originUnknown": "غير معروف",
       "autoReasonLabel": "سبب التبديل التلقائي: {{reason}}",
-      "autoReason": "القاعدة: {{rule}}؛ العتبة: {{threshold}}%؛ النطاق: {{scope}}؛ المجموعات المراقبة: {{selectedGroups}}؛ المجموعات المطابِقة: {{hitGroups}}؛ الحسابات المرشحة: {{candidates}}",
+      "autoReason": "القاعدة: {{rule}}؛ حد الحصة: {{quotaThreshold}}%؛ حد الرصيد: {{creditsThreshold}}؛ النطاق: {{scope}}؛ المجموعات المراقبة: {{selectedGroups}}؛ المجموعات المطابِقة: {{hitGroups}}؛ الرصيد الحالي: {{currentCredits}}؛ الحسابات المرشحة: {{candidates}}",
       "autoReasonUnknown": "تم تشغيل التبديل التلقائي، لكن لم يتم تسجيل سبب مفصل",
       "autoReasonRuleCurrentDisabled": "الحساب الحالي معطّل",
       "autoReasonRuleQuotaForbidden": "حصة الحساب الحالي مقيّدة",
+      "autoReasonRuleGroupAndCreditsBelowThreshold": "مجموعة النماذج والرصيد كلاهما دون الحد",
       "autoReasonRuleGroupBelowThreshold": "مجموعة النماذج أقل من العتبة",
+      "autoReasonRuleCreditsBelowThreshold": "الرصيد المتبقي دون الحد",
       "autoReasonScopeAnyGroup": "أي مجموعة نماذج",
       "autoReasonScopeSelectedGroups": "مجموعات نماذج محددة",
       "stageResult": "محلي: {{local}} / سلس: {{seamless}}",
@@ -2314,7 +2316,10 @@
       "enable": "التبديل التلقائي",
       "threshold": "عتبة التبديل",
       "thresholdDesc": "يتم تشغيل التبديل التلقائي عندما تصل مجموعات النماذج المُراقبة إلى هذه العتبة المئوية",
-      "hint": "يتم التبديل تلقائيًا إلى الحساب صاحب أعلى حصة عندما تصل مجموعات النماذج المُراقبة إلى العتبة.",
+      "hint": "يتم التبديل تلقائيًا عند وصول مجموعات النماذج المُراقبة إلى العتبة؛ وإذا فُعّل مراقبة الرصيد فسيتم التبديل أيضًا عند انخفاض الرصيد المتبقي دون العتبة.",
+      "creditsEnable": "مراقبة الرصيد",
+      "creditsThreshold": "حد الرصيد",
+      "creditsThresholdDesc": "بدّل تلقائيًا أيضًا عندما يصبح الرصيد المتبقي عند هذه القيمة أو أقل",
       "triggerModel": "نموذج التفعيل",
       "scopeAnyGroup": "أي مجموعة نماذج",
       "scopeSelectedGroups": "مجموعات نماذج محددة",
@@ -2332,6 +2337,7 @@
     "apply": "تطبيق",
     "inputMinutes": "أدخل الدقائق",
     "inputPercent": "أدخل النسبة المئوية",
+    "inputCredits": "أدخل الرصيد",
     "windsurf": {
       "title": "إعدادات Windsurf",
       "appPath": "مسار Windsurf"
@@ -2381,6 +2387,11 @@
     "zed": {
       "title": "إعدادات Zed",
       "appPath": "مسار Zed"
+    },
+    "filterPersistence": {
+      "title": "تذكّر الفلاتر",
+      "enable": "تذكّر فلاتر نظرة الحسابات (بدون البحث)",
+      "hint": "مغلق افتراضيًا. عند التفعيل تُحفَظ التصفية والوسوم والترتيب لكل منصة."
     }
   },
   "quotaAlert": {

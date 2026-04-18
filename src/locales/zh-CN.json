@@ -1000,11 +1000,13 @@
       "originPlugin": "插件端",
       "originUnknown": "未知",
       "autoReasonLabel": "自动原因：{{reason}}",
-      "autoReason": "规则：{{rule}}；阈值：{{threshold}}%；范围：{{scope}}；监控分组：{{selectedGroups}}；命中分组：{{hitGroups}}；候选账号：{{candidates}}",
+      "autoReason": "规则：{{rule}}；额度阈值：{{quotaThreshold}}%；Credits 阈值：{{creditsThreshold}}；范围：{{scope}}；监控分组：{{selectedGroups}}；命中分组：{{hitGroups}}；当前 Credits：{{currentCredits}}；候选账号：{{candidates}}",
       "autoReasonUnknown": "自动切号触发，未记录详细原因",
       "autoReasonRuleCurrentDisabled": "当前账号已禁用",
       "autoReasonRuleQuotaForbidden": "当前账号配额受限",
+      "autoReasonRuleGroupAndCreditsBelowThreshold": "模型分组和 Credits 同时低于阈值",
       "autoReasonRuleGroupBelowThreshold": "模型分组低于阈值",
+      "autoReasonRuleCreditsBelowThreshold": "剩余 Credits 低于阈值",
       "autoReasonScopeAnyGroup": "任一模型分组",
       "autoReasonScopeSelectedGroups": "指定模型分组",
       "stageResult": "本地：{{local}} / 无感：{{seamless}}",
@@ -2414,12 +2416,15 @@
       "enable": "自动切号",
       "threshold": "切号阈值",
       "thresholdDesc": "命中监控的模型分组阈值时触发自动切号",
+      "creditsEnable": "监控 Credits",
+      "creditsThreshold": "Credits 阈值",
+      "creditsThresholdDesc": "剩余 Credits 小于等于此值时也会触发自动切号",
       "triggerModel": "触发模型",
       "scopeAnyGroup": "任一模型分组",
       "scopeSelectedGroups": "指定模型分组",
       "selectedGroups": "指定分组",
       "selectedGroupsEmpty": "暂无可选分组",
-      "hint": "当命中监控的模型分组阈值时，自动切换到配额最高的账号。"
+      "hint": "命中监控的模型分组阈值时会自动切号；启用 Credits 监控后，剩余 Credits 低于阈值时也会触发。"
     },
     "quotaAlert": {
       "title": "超额预警",
@@ -2428,10 +2433,16 @@
       "thresholdDesc": "任意模型配额低于此百分比时触发预警",
       "hint": "当当前账号任意模型配额低于阈值时，发送原生通知并在页面提示快捷切号。"
     },
+    "filterPersistence": {
+      "title": "筛选记忆",
+      "enable": "记住账号总览筛选（不含搜索）",
+      "hint": "默认关闭。开启后会按平台记住筛选、标签和排序。"
+    },
     "customInput": "自定义",
     "apply": "确定",
     "inputMinutes": "输入分钟数",
     "inputPercent": "输入百分比",
+    "inputCredits": "输入 Credits",
     "windsurf": {
       "title": "Windsurf 设置",
       "appPath": "Windsurf 路径"

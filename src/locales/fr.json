@@ -1016,11 +1016,13 @@
       "originPlugin": "Extension",
       "originUnknown": "Inconnu",
       "autoReasonLabel": "Raison auto : {{reason}}",
-      "autoReason": "Règle : {{rule}} ; seuil : {{threshold}}% ; portée : {{scope}} ; groupes surveillés : {{selectedGroups}} ; groupes touchés : {{hitGroups}} ; candidats : {{candidates}}",
+      "autoReason": "Règle : {{rule}} ; seuil de quota : {{quotaThreshold}}% ; seuil de crédits : {{creditsThreshold}} ; portée : {{scope}} ; groupes surveillés : {{selectedGroups}} ; groupes touchés : {{hitGroups}} ; crédits actuels : {{currentCredits}} ; comptes candidats : {{candidates}}",
       "autoReasonUnknown": "La bascule automatique a été déclenchée, mais aucune raison détaillée n’a été enregistrée",
       "autoReasonRuleCurrentDisabled": "Le compte actuel est désactivé",
       "autoReasonRuleQuotaForbidden": "Le quota du compte actuel est bloqué",
+      "autoReasonRuleGroupAndCreditsBelowThreshold": "Le groupe de modèles et les crédits sont tous deux sous le seuil",
       "autoReasonRuleGroupBelowThreshold": "Groupe de modèles sous le seuil",
+      "autoReasonRuleCreditsBelowThreshold": "Les crédits restants sont sous le seuil",
       "autoReasonScopeAnyGroup": "N’importe quel groupe de modèles",
       "autoReasonScopeSelectedGroups": "Groupes de modèles sélectionnés",
       "stageResult": "Local : {{local}} / Fluide : {{seamless}}",
@@ -2268,7 +2270,10 @@
       "enable": "Changement automatique",
       "threshold": "Seuil de changement",
       "thresholdDesc": "La bascule automatique se déclenche lorsque les groupes de modèles surveillés atteignent ce seuil en pourcentage",
-      "hint": "Bascule automatiquement vers le compte avec le quota le plus élevé lorsque les groupes de modèles surveillés atteignent le seuil.",
+      "hint": "Bascule automatiquement lorsque les groupes de modèles surveillés atteignent le seuil ; si la surveillance des crédits est activée, cela se déclenche aussi quand les crédits restants passent sous le seuil.",
+      "creditsEnable": "Surveiller les crédits",
+      "creditsThreshold": "Seuil de crédits",
+      "creditsThresholdDesc": "Basculer aussi automatiquement lorsque les crédits restants atteignent cette valeur ou moins",
       "triggerModel": "Modèle de déclenchement",
       "scopeAnyGroup": "N’importe quel groupe de modèles",
       "scopeSelectedGroups": "Groupes de modèles sélectionnés",
@@ -2286,6 +2291,7 @@
     "apply": "Appliquer",
     "inputMinutes": "Entrer les minutes",
     "inputPercent": "Entrer le pourcentage",
+    "inputCredits": "Entrer les crédits",
     "windsurf": {
       "title": "Paramètres Windsurf",
       "appPath": "Chemin Windsurf"
@@ -2335,6 +2341,11 @@
     "zed": {
       "title": "Paramètres Zed",
       "appPath": "Chemin Zed"
+    },
+    "filterPersistence": {
+      "title": "Mémoire des filtres",
+      "enable": "Mémoriser les filtres de l’aperçu des comptes (hors recherche)",
+      "hint": "Désactivé par défaut. Une fois activé, chaque plateforme conserve filtres, étiquettes et tri."
     }
   },
   "quotaAlert": {

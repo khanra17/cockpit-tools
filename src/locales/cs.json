@@ -1016,11 +1016,13 @@
       "originPlugin": "Rozšíření",
       "originUnknown": "Neznámé",
       "autoReasonLabel": "Důvod automatiky: {{reason}}",
-      "autoReason": "Pravidlo: {{rule}}; práh: {{threshold}}%; rozsah: {{scope}}; sledované skupiny: {{selectedGroups}}; zasažené skupiny: {{hitGroups}}; kandidáti: {{candidates}}",
+      "autoReason": "Pravidlo: {{rule}}; práh kvóty: {{quotaThreshold}}%; práh kreditů: {{creditsThreshold}}; rozsah: {{scope}}; sledované skupiny: {{selectedGroups}}; zasažené skupiny: {{hitGroups}}; aktuální kredity: {{currentCredits}}; kandidáti: {{candidates}}",
       "autoReasonUnknown": "Bylo spuštěno automatické přepnutí, ale nebyl zaznamenán podrobný důvod",
       "autoReasonRuleCurrentDisabled": "Aktuální účet je zakázán",
       "autoReasonRuleQuotaForbidden": "Kvóta aktuálního účtu je omezená",
+      "autoReasonRuleGroupAndCreditsBelowThreshold": "Skupina modelů i kredity jsou pod prahem",
       "autoReasonRuleGroupBelowThreshold": "Skupina modelů pod prahem",
+      "autoReasonRuleCreditsBelowThreshold": "Zbývající kredity jsou pod prahem",
       "autoReasonScopeAnyGroup": "Libovolná skupina modelů",
       "autoReasonScopeSelectedGroups": "Vybrané skupiny modelů",
       "stageResult": "Lokálně: {{local}} / Plynule: {{seamless}}",
@@ -2268,7 +2270,10 @@
       "enable": "Automatické přepnutí",
       "threshold": "Práh přepnutí",
       "thresholdDesc": "Automatické přepnutí se spustí, když sledované skupiny modelů dosáhnou této procentní hranice",
-      "hint": "Automaticky přepne na účet s nejvyšší kvótou, když sledované skupiny modelů dosáhnou prahu.",
+      "hint": "Automaticky přepne, když sledované skupiny modelů dosáhnou prahu; při zapnutém sledování kreditů se spustí i při poklesu zbývajících kreditů pod práh.",
+      "creditsEnable": "Sledovat kredity",
+      "creditsThreshold": "Práh kreditů",
+      "creditsThresholdDesc": "Také automaticky přepnout, když zbývající kredity klesnou na tuto hodnotu nebo níže",
       "triggerModel": "Spouštěcí model",
       "scopeAnyGroup": "Libovolná skupina modelů",
       "scopeSelectedGroups": "Vybrané skupiny modelů",
@@ -2286,6 +2291,7 @@
     "apply": "Použít",
     "inputMinutes": "Zadejte minuty",
     "inputPercent": "Zadejte procento",
+    "inputCredits": "Zadejte kredity",
     "windsurf": {
       "title": "Nastavení Windsurf",
       "appPath": "Cesta k Windsurf"
@@ -2335,6 +2341,11 @@
     "zed": {
       "title": "Nastavení Zed",
       "appPath": "Cesta k Zed"
+    },
+    "filterPersistence": {
+      "title": "Paměť filtrů",
+      "enable": "Pamatovat filtry přehledu účtů (bez vyhledávání)",
+      "hint": "Ve výchozím stavu vypnuto. Po zapnutí se pro každou platformu uloží filtry, štítky a řazení."
     }
   },
   "quotaAlert": {

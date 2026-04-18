@@ -177,6 +177,55 @@
   overflow: visible;
 }
 
+.codex-local-access-empty-state {
+  width: 100%;
+  min-height: 92px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 6px;
+  text-align: center;
+}
+
+.codex-local-access-empty-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.codex-local-access-empty-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(14, 165, 233, 0.35);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.16) 0%, rgba(56, 189, 248, 0.24) 100%);
+  color: #0369a1;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.codex-local-access-empty-action:hover:not(:disabled) {
+  border-color: rgba(14, 165, 233, 0.55);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.26) 0%, rgba(56, 189, 248, 0.34) 100%);
+  box-shadow: 0 8px 16px rgba(14, 165, 233, 0.22);
+  transform: translateY(-1px);
+}
+
+.codex-local-access-empty-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 .codex-local-access-card .folder-inline-preview,
 .codex-local-access-card .folder-preview-item,
 .codex-local-access-member {
@@ -352,6 +401,22 @@
   background: transparent;
   border-color: transparent;
   box-shadow: none;
+}
+
+[data-theme="dark"] .codex-local-access-empty-text {
+  color: rgba(226, 232, 240, 0.78);
+}
+
+[data-theme="dark"] .codex-local-access-empty-action {
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #bae6fd;
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.28) 0%, rgba(14, 116, 144, 0.38) 100%);
+}
+
+[data-theme="dark"] .codex-local-access-empty-action:hover:not(:disabled) {
+  border-color: rgba(125, 211, 252, 0.62);
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.4) 0%, rgba(14, 116, 144, 0.52) 100%);
+  box-shadow: 0 8px 18px rgba(14, 165, 233, 0.28);
 }
 
 [data-theme="dark"] .codex-local-access-member-quota {

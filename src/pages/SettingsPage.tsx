@@ -127,6 +127,8 @@ interface GeneralConfig {
   antigravity_dual_switch_no_restart_enabled: boolean;
   auto_switch_enabled: boolean;
   auto_switch_threshold: number;
+  auto_switch_credits_enabled?: boolean;
+  auto_switch_credits_threshold?: number;
   auto_switch_account_scope_mode?: string;
   auto_switch_selected_account_ids?: string[];
   codex_auto_switch_enabled?: boolean;
@@ -167,6 +169,7 @@ type AppPathTarget =
 const REFRESH_PRESET_VALUES = ['-1', '2', '5', '10', '15'];
 const CURRENT_ACCOUNT_REFRESH_PRESET_VALUES = ['1', '2', '5', '10', '15'];
 const THRESHOLD_PRESET_VALUES = ['0', '20', '40', '60'];
+const CREDITS_THRESHOLD_PRESET_VALUES = ['0', '5', '10', '20'];
 const UI_SCALE_OPTIONS = ['0.9', '1', '1.1', '1.25', '1.5'] as const;
 const ANTIGRAVITY_SEAMLESS_SWITCH_UNLOCK_REQUIRED_TAPS = 10;
 const UNLOCK_FIREWORKS_VISIBLE_MS = 6000;
@@ -384,6 +387,8 @@ export function SettingsPage() {
   const [antigravityDualSwitchNoRestartEnabled, setAntigravityDualSwitchNoRestartEnabled] = useState(false);
   const [autoSwitchEnabled, setAutoSwitchEnabled] = useState(false);
   const [autoSwitchThreshold, setAutoSwitchThreshold] = useState('20');
+  const [autoSwitchCreditsEnabled, setAutoSwitchCreditsEnabled] = useState(false);
+  const [autoSwitchCreditsThreshold, setAutoSwitchCreditsThreshold] = useState('5');
   const [autoSwitchAccountScopeMode, setAutoSwitchAccountScopeMode] =
     useState<AutoSwitchAccountScopeMode>(AUTO_SWITCH_SCOPE_ALL_ACCOUNTS);
   const [autoSwitchSelectedAccountIds, setAutoSwitchSelectedAccountIds] = useState<string[]>([]);
@@ -415,6 +420,7 @@ export function SettingsPage() {
   const [cursorAutoRefreshCustomMode, setCursorAutoRefreshCustomMode] = useState(false);
   const [geminiAutoRefreshCustomMode, setGeminiAutoRefreshCustomMode] = useState(false);
   const [autoSwitchThresholdCustomMode, setAutoSwitchThresholdCustomMode] = useState(false);
+  const [autoSwitchCreditsThresholdCustomMode, setAutoSwitchCreditsThresholdCustomMode] = useState(false);
   const [quotaAlertThresholdCustomMode, setQuotaAlertThresholdCustomMode] = useState(false);
   const [codexQuotaAlertThresholdCustomMode, setCodexQuotaAlertThresholdCustomMode] = useState(false);
   const [ghcpQuotaAlertThresholdCustomMode, setGhcpQuotaAlertThresholdCustomMode] = useState(false);
@@ -705,6 +711,7 @@ export function SettingsPage() {
       ? Math.min(2, Math.max(0.8, parsedUiScale))
       : 1;
     const parsedAutoSwitchThreshold = Number.parseInt(autoSwitchThreshold, 10);
+    const parsedAutoSwitchCreditsThreshold = Number.parseInt(autoSwitchCreditsThreshold, 10);
     const parsedQuotaAlertThreshold = Number.parseInt(quotaAlertThreshold, 10);
     const parsedCodexQuotaAlertThreshold = Number.parseInt(codexQuotaAlertThreshold, 10);
     const parsedGhcpQuotaAlertThreshold = Number.parseInt(ghcpQuotaAlertThreshold, 10);
@@ -769,6 +776,10 @@ export function SettingsPage() {
           antigravityDualSwitchNoRestartEnabled,
           autoSwitchEnabled,
           autoSwitchThreshold: Number.isNaN(parsedAutoSwitchThreshold) ? 20 : parsedAutoSwitchThreshold,
+          autoSwitchCreditsEnabled,
+          autoSwitchCreditsThreshold: Number.isNaN(parsedAutoSwitchCreditsThreshold)
+            ? 5
+            : parsedAutoSwitchCreditsThreshold,
           autoSwitchAccountScopeMode,
           autoSwitchSelectedAccountIds,
           codexAutoSwitchAccountScopeMode,
@@ -879,6 +890,8 @@ export function SettingsPage() {
     antigravityDualSwitchNoRestartEnabled,
     autoSwitchEnabled,
     autoSwitchThreshold,
+    autoSwitchCreditsEnabled,
+    autoSwitchCreditsThreshold,
     autoSwitchAccountScopeMode,
     autoSwitchSelectedAccountIds,
     codexAutoSwitchAccountScopeMode,
@@ -1180,6 +1193,8 @@ export function SettingsPage() {
       );
       setAutoSwitchEnabled(config.auto_switch_enabled ?? false);
       setAutoSwitchThreshold(String(config.auto_switch_threshold ?? 20));
+      setAutoSwitchCreditsEnabled(config.auto_switch_credits_enabled ?? false);
+      setAutoSwitchCreditsThreshold(String(config.auto_switch_credits_threshold ?? 5));
       setAutoSwitchAccountScopeMode(
         normalizeAutoSwitchAccountScopeMode(config.auto_switch_account_scope_mode),
       );
@@ -1217,6 +1232,7 @@ export function SettingsPage() {
       setCursorAutoRefreshCustomMode(false);
       setGeminiAutoRefreshCustomMode(false);
       setAutoSwitchThresholdCustomMode(false);
+      setAutoSwitchCreditsThresholdCustomMode(false);
       setQuotaAlertThresholdCustomMode(false);
       setCodexQuotaAlertThresholdCustomMode(false);
       setGhcpQuotaAlertThresholdCustomMode(false);
@@ -1591,6 +1607,9 @@ export function SettingsPage() {
   const cursorAutoRefreshIsPreset = REFRESH_PRESET_VALUES.includes(cursorAutoRefresh);
   const geminiAutoRefreshIsPreset = REFRESH_PRESET_VALUES.includes(geminiAutoRefresh);
   const autoSwitchThresholdIsPreset = THRESHOLD_PRESET_VALUES.includes(autoSwitchThreshold);
+  const autoSwitchCreditsThresholdIsPreset = CREDITS_THRESHOLD_PRESET_VALUES.includes(
+    autoSwitchCreditsThreshold,
+  );
   const quotaAlertThresholdIsPreset = THRESHOLD_PRESET_VALUES.includes(quotaAlertThreshold);
   const codexQuotaAlertThresholdIsPreset = THRESHOLD_PRESET_VALUES.includes(codexQuotaAlertThreshold);
   const ghcpQuotaAlertThresholdIsPreset = THRESHOLD_PRESET_VALUES.includes(ghcpQuotaAlertThreshold);
@@ -2103,7 +2122,7 @@ export function SettingsPage() {
               <div className="settings-row">
                 <div className="row-label">
                   <div className="row-title">{t('quickSettings.autoSwitch.enable', '自动切号')}</div>
-                  <div className="row-desc">{t('quickSettings.autoSwitch.hint', '当任意模型配额低于阈值时，自动切换到配额最高的账号。')}</div>
+                  <div className="row-desc">{t('quickSettings.autoSwitch.hint', '命中监控的模型分组阈值时会自动切号；启用 Credits 监控后，剩余 Credits 低于阈值时也会触发。')}</div>
                 </div>
                 <div className="row-control">
                   <label className="switch">
@@ -2171,6 +2190,95 @@ export function SettingsPage() {
                         <option value="20">20%</option>
                         <option value="40">40%</option>
                         <option value="60">60%</option>
+                        <option value="custom">{t('settings.general.autoRefreshCustom')}</option>
+                      </select>
+                    )}
+                  </div>
+                </div>
+              )}
+              {autoSwitchEnabled && (
+                <div className="settings-row">
+                  <div className="row-label">
+                    <div className="row-title">
+                      {t('quickSettings.autoSwitch.creditsEnable', '监控 Credits')}
+                    </div>
+                    <div className="row-desc">
+                      {t('quickSettings.autoSwitch.creditsThresholdDesc', '剩余 Credits 小于等于此值时也会触发自动切号')}
+                    </div>
+                  </div>
+                  <div className="row-control">
+                    <label className="switch">
+                      <input
+                        type="checkbox"
+                        checked={autoSwitchCreditsEnabled}
+                        onChange={(e) => setAutoSwitchCreditsEnabled(e.target.checked)}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
+                </div>
+              )}
+              {autoSwitchEnabled && autoSwitchCreditsEnabled && (
+                <div className="settings-row" style={{ animation: 'fadeUp 0.3s ease both' }}>
+                  <div className="row-label">
+                    <div className="row-title">
+                      {t('quickSettings.autoSwitch.creditsThreshold', 'Credits 阈值')}
+                    </div>
+                    <div className="row-desc">
+                      {t('quickSettings.autoSwitch.creditsThresholdDesc', '剩余 Credits 小于等于此值时也会触发自动切号')}
+                    </div>
+                  </div>
+                  <div className="row-control">
+                    {autoSwitchCreditsThresholdCustomMode ? (
+                      <div className="settings-inline-input">
+                        <input
+                          type="number"
+                          min={0}
+                          className="settings-select settings-select--input-mode"
+                          value={autoSwitchCreditsThreshold}
+                          placeholder={t('quickSettings.inputCredits', '输入 Credits')}
+                          onChange={(e) =>
+                            setAutoSwitchCreditsThreshold(sanitizeNumberInput(e.target.value))
+                          }
+                          onBlur={() => {
+                            const normalized = normalizeNumberInput(autoSwitchCreditsThreshold, 0);
+                            setAutoSwitchCreditsThreshold(normalized);
+                            setAutoSwitchCreditsThresholdCustomMode(false);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const normalized = normalizeNumberInput(autoSwitchCreditsThreshold, 0);
+                              setAutoSwitchCreditsThreshold(normalized);
+                              setAutoSwitchCreditsThresholdCustomMode(false);
+                            }
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <select
+                        className="settings-select"
+                        value={autoSwitchCreditsThreshold}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === 'custom') {
+                            setAutoSwitchCreditsThresholdCustomMode(true);
+                            setAutoSwitchCreditsThreshold(autoSwitchCreditsThreshold || '5');
+                            return;
+                          }
+                          setAutoSwitchCreditsThresholdCustomMode(false);
+                          setAutoSwitchCreditsThreshold(val);
+                        }}
+                      >
+                        {!autoSwitchCreditsThresholdIsPreset && (
+                          <option value={autoSwitchCreditsThreshold}>
+                            {autoSwitchCreditsThreshold}
+                          </option>
+                        )}
+                        <option value="0">0</option>
+                        <option value="5">5</option>
+                        <option value="10">10</option>
+                        <option value="20">20</option>
                         <option value="custom">{t('settings.general.autoRefreshCustom')}</option>
                       </select>
                     )}

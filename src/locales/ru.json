@@ -1016,11 +1016,13 @@
       "originPlugin": "Расширение",
       "originUnknown": "Неизвестно",
       "autoReasonLabel": "Автопричина: {{reason}}",
-      "autoReason": "Правило: {{rule}}; порог: {{threshold}}%; область: {{scope}}; отслеживаемые группы: {{selectedGroups}}; сработавшие группы: {{hitGroups}}; кандидаты: {{candidates}}",
+      "autoReason": "Правило: {{rule}}; порог квоты: {{quotaThreshold}}%; порог кредитов: {{creditsThreshold}}; область: {{scope}}; отслеживаемые группы: {{selectedGroups}}; сработавшие группы: {{hitGroups}}; текущие кредиты: {{currentCredits}}; кандидаты: {{candidates}}",
       "autoReasonUnknown": "Автопереключение сработало, но подробная причина не записана",
       "autoReasonRuleCurrentDisabled": "Текущий аккаунт отключён",
       "autoReasonRuleQuotaForbidden": "Квота текущего аккаунта ограничена",
+      "autoReasonRuleGroupAndCreditsBelowThreshold": "Группа моделей и кредиты одновременно ниже порога",
       "autoReasonRuleGroupBelowThreshold": "Группа моделей ниже порога",
+      "autoReasonRuleCreditsBelowThreshold": "Оставшиеся кредиты ниже порога",
       "autoReasonScopeAnyGroup": "Любая группа моделей",
       "autoReasonScopeSelectedGroups": "Выбранные группы моделей",
       "stageResult": "Локально: {{local}} / Плавно: {{seamless}}",
@@ -2268,7 +2270,10 @@
       "enable": "Автопереключение",
       "threshold": "Порог переключения",
       "thresholdDesc": "Автопереключение срабатывает, когда отслеживаемые группы моделей достигают этого процентного порога",
-      "hint": "Автоматически переключает на аккаунт с наибольшей квотой, когда отслеживаемые группы моделей достигают порога.",
+      "hint": "Автоматически переключает, когда отслеживаемые группы моделей достигают порога; при включённом отслеживании кредитов также срабатывает, когда оставшиеся кредиты падают ниже порога.",
+      "creditsEnable": "Отслеживать кредиты",
+      "creditsThreshold": "Порог кредитов",
+      "creditsThresholdDesc": "Также автоматически переключать, когда оставшиеся кредиты достигают этого значения или ниже",
       "triggerModel": "Модель-триггер",
       "scopeAnyGroup": "Любая группа моделей",
       "scopeSelectedGroups": "Выбранные группы моделей",
@@ -2286,6 +2291,7 @@
     "apply": "Применить",
     "inputMinutes": "Введите минуты",
     "inputPercent": "Введите процент",
+    "inputCredits": "Введите кредиты",
     "windsurf": {
       "title": "Настройки Windsurf",
       "appPath": "Путь к Windsurf"
@@ -2335,6 +2341,11 @@
     "zed": {
       "title": "Настройки Zed",
       "appPath": "Путь Zed"
+    },
+    "filterPersistence": {
+      "title": "Память фильтров",
+      "enable": "Запоминать фильтры обзора аккаунтов (кроме поиска)",
+      "hint": "По умолчанию выключено. При включении для каждой платформы сохраняются фильтры, теги и сортировка."
     }
   },
   "quotaAlert": {

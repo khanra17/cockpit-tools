@@ -1016,11 +1016,13 @@
       "originPlugin": "Extensión",
       "originUnknown": "Desconocido",
       "autoReasonLabel": "Motivo automático: {{reason}}",
-      "autoReason": "Regla: {{rule}}; umbral: {{threshold}}%; alcance: {{scope}}; grupos monitorizados: {{selectedGroups}}; grupos activados: {{hitGroups}}; candidatos: {{candidates}}",
+      "autoReason": "Regla: {{rule}}; umbral de cuota: {{quotaThreshold}}%; umbral de créditos: {{creditsThreshold}}; alcance: {{scope}}; grupos monitorizados: {{selectedGroups}}; grupos activados: {{hitGroups}}; créditos actuales: {{currentCredits}}; cuentas candidatas: {{candidates}}",
       "autoReasonUnknown": "Se activó el cambio automático, pero no se registró un motivo detallado",
       "autoReasonRuleCurrentDisabled": "La cuenta actual está deshabilitada",
       "autoReasonRuleQuotaForbidden": "La cuota de la cuenta actual está restringida",
+      "autoReasonRuleGroupAndCreditsBelowThreshold": "El grupo de modelos y los créditos están por debajo del umbral",
       "autoReasonRuleGroupBelowThreshold": "Grupo de modelos por debajo del umbral",
+      "autoReasonRuleCreditsBelowThreshold": "Los créditos restantes están por debajo del umbral",
       "autoReasonScopeAnyGroup": "Cualquier grupo de modelos",
       "autoReasonScopeSelectedGroups": "Grupos de modelos seleccionados",
       "stageResult": "Local: {{local}} / Fluido: {{seamless}}",
@@ -2268,7 +2270,10 @@
       "enable": "Cambio automático",
       "threshold": "Umbral de cambio",
       "thresholdDesc": "El cambio automático se activa cuando los grupos de modelos monitorizados alcanzan este umbral porcentual",
-      "hint": "Cambia automáticamente a la cuenta con mayor cuota cuando los grupos de modelos monitorizados alcanzan el umbral.",
+      "hint": "Cambia automáticamente cuando los grupos de modelos monitorizados alcanzan el umbral; si la supervisión de créditos está activada, también se activa cuando los créditos restantes caen por debajo del umbral.",
+      "creditsEnable": "Supervisar créditos",
+      "creditsThreshold": "Umbral de créditos",
+      "creditsThresholdDesc": "También cambiar automáticamente cuando los créditos restantes sean iguales o inferiores a este valor",
       "triggerModel": "Modelo de activación",
       "scopeAnyGroup": "Cualquier grupo de modelos",
       "scopeSelectedGroups": "Grupos de modelos seleccionados",
@@ -2286,6 +2291,7 @@
     "apply": "Aplicar",
     "inputMinutes": "Introduzca minutos",
     "inputPercent": "Introduzca porcentaje",
+    "inputCredits": "Introduzca créditos",
     "windsurf": {
       "title": "Configuración de Windsurf",
       "appPath": "Ruta de Windsurf"
@@ -2335,6 +2341,11 @@
     "zed": {
       "title": "Configuración de Zed",
       "appPath": "Ruta de Zed"
+    },
+    "filterPersistence": {
+      "title": "Memoria de filtros",
+      "enable": "Recordar filtros del resumen de cuentas (sin búsqueda)",
+      "hint": "Desactivado por defecto. Al activarlo, cada plataforma conserva filtros, etiquetas y orden."
     }
   },
   "quotaAlert": {

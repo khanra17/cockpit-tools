@@ -51,6 +51,7 @@ pub mod oauth_server;
 pub mod openclaw_auth;
 pub mod opencode_auth;
 pub mod process;
+pub mod provider_token_keeper;
 pub mod qoder_account;
 pub mod qoder_instance;
 pub mod qoder_oauth;

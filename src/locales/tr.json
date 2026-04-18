@@ -1016,11 +1016,13 @@
       "originPlugin": "Eklenti",
       "originUnknown": "Bilinmiyor",
       "autoReasonLabel": "Otomatik neden: {{reason}}",
-      "autoReason": "Kural: {{rule}}; eşik: {{threshold}}%; kapsam: {{scope}}; izlenen gruplar: {{selectedGroups}}; eşik aşan gruplar: {{hitGroups}}; adaylar: {{candidates}}",
+      "autoReason": "Kural: {{rule}}; kota eşiği: {{quotaThreshold}}%; kredi eşiği: {{creditsThreshold}}; kapsam: {{scope}}; izlenen gruplar: {{selectedGroups}}; tetiklenen gruplar: {{hitGroups}}; mevcut krediler: {{currentCredits}}; adaylar: {{candidates}}",
       "autoReasonUnknown": "Otomatik geçiş tetiklendi ancak ayrıntılı neden kaydedilmedi",
       "autoReasonRuleCurrentDisabled": "Geçerli hesap devre dışı",
       "autoReasonRuleQuotaForbidden": "Geçerli hesabın kotası kısıtlı",
+      "autoReasonRuleGroupAndCreditsBelowThreshold": "Model grubu ve krediler birlikte eşik altında",
       "autoReasonRuleGroupBelowThreshold": "Model grubu eşiğin altında",
+      "autoReasonRuleCreditsBelowThreshold": "Kalan krediler eşik altında",
       "autoReasonScopeAnyGroup": "Herhangi bir model grubu",
       "autoReasonScopeSelectedGroups": "Seçili model grupları",
       "stageResult": "Yerel: {{local}} / Kesintisiz: {{seamless}}",
@@ -2268,7 +2270,10 @@
       "enable": "Otomatik Geçiş",
       "threshold": "Geçiş Eşiği",
       "thresholdDesc": "İzlenen model grupları bu yüzde eşiğe ulaştığında otomatik geçiş tetiklenir",
-      "hint": "İzlenen model grupları eşiğe ulaştığında otomatik olarak en yüksek kotaya sahip hesaba geçer.",
+      "hint": "İzlenen model grupları eşiğe ulaştığında otomatik geçiş yapar; kredi izleme açıksa kalan krediler eşik altına düştüğünde de tetiklenir.",
+      "creditsEnable": "Kredileri izle",
+      "creditsThreshold": "Kredi eşiği",
+      "creditsThresholdDesc": "Kalan krediler bu değere veya altına düştüğünde de otomatik geçiş yap",
       "triggerModel": "Tetik model",
       "scopeAnyGroup": "Herhangi bir model grubu",
       "scopeSelectedGroups": "Seçili model grupları",
@@ -2286,6 +2291,7 @@
     "apply": "Uygula",
     "inputMinutes": "Dakika girin",
     "inputPercent": "Yüzde girin",
+    "inputCredits": "Kredi girin",
     "windsurf": {
       "title": "Windsurf Ayarları",
       "appPath": "Windsurf Yolu"
@@ -2335,6 +2341,11 @@
     "zed": {
       "title": "Zed Ayarları",
       "appPath": "Zed Yolu"
+    },
+    "filterPersistence": {
+      "title": "Filtre hafızası",
+      "enable": "Hesap genel görünüm filtrelerini hatırla (arama hariç)",
+      "hint": "Varsayılan olarak kapalıdır. Açıldığında her platform için filtreler, etiketler ve sıralama korunur."
     }
   },
   "quotaAlert": {

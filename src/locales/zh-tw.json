@@ -1016,11 +1016,13 @@
       "originPlugin": "外掛端",
       "originUnknown": "未知",
       "autoReasonLabel": "自動原因：{{reason}}",
-      "autoReason": "規則：{{rule}}；閾值：{{threshold}}%；範圍：{{scope}}；監控分組：{{selectedGroups}}；命中分組：{{hitGroups}}；候選帳號：{{candidates}}",
+      "autoReason": "規則：{{rule}}；額度閾值：{{quotaThreshold}}%；Credits 閾值：{{creditsThreshold}}；範圍：{{scope}}；監控分組：{{selectedGroups}}；命中分組：{{hitGroups}}；目前 Credits：{{currentCredits}}；候選帳號：{{candidates}}",
       "autoReasonUnknown": "已觸發自動切號，但未記錄詳細原因",
       "autoReasonRuleCurrentDisabled": "目前帳號已停用",
       "autoReasonRuleQuotaForbidden": "目前帳號配額受限",
+      "autoReasonRuleGroupAndCreditsBelowThreshold": "模型分組和 Credits 同時低於閾值",
       "autoReasonRuleGroupBelowThreshold": "模型分組低於閾值",
+      "autoReasonRuleCreditsBelowThreshold": "剩餘 Credits 低於閾值",
       "autoReasonScopeAnyGroup": "任一模型分組",
       "autoReasonScopeSelectedGroups": "指定模型分組",
       "stageResult": "本地：{{local}} / 無感：{{seamless}}",
@@ -2268,7 +2270,10 @@
       "enable": "自動切換",
       "threshold": "切換閾值",
       "thresholdDesc": "命中監控的模型分組閾值時觸發自動切號",
-      "hint": "當命中監控的模型分組閾值時，自動切換到配額最高的帳號。",
+      "hint": "命中監控的模型分組閾值時會自動切號；啟用 Credits 監控後，剩餘 Credits 低於閾值時也會觸發。",
+      "creditsEnable": "監控 Credits",
+      "creditsThreshold": "Credits 閾值",
+      "creditsThresholdDesc": "剩餘 Credits 小於等於此值時也會觸發自動切號",
       "triggerModel": "觸發模型",
       "scopeAnyGroup": "任一模型分組",
       "scopeSelectedGroups": "指定模型分組",
@@ -2286,6 +2291,7 @@
     "apply": "確定",
     "inputMinutes": "輸入分鐘數",
     "inputPercent": "輸入百分比",
+    "inputCredits": "輸入 Credits",
     "windsurf": {
       "title": "Windsurf 設定",
       "appPath": "Windsurf 路徑"
@@ -2335,6 +2341,11 @@
     "zed": {
       "title": "Zed 設定",
       "appPath": "Zed 路徑"
+    },
+    "filterPersistence": {
+      "title": "篩選記憶",
+      "enable": "記住帳號總覽篩選（不含搜尋）",
+      "hint": "預設關閉。開啟後會依平台記住篩選、標籤與排序。"
     }
   },
   "quotaAlert": {

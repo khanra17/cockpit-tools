@@ -130,6 +130,14 @@ import {
   transformCodexExportJson,
   type CodexExportFormat,
 } from '../utils/codexExportFormats';
+import {
+  normalizeAccountsOverviewScope,
+  readAccountsOverviewFilterField,
+  readAccountsOverviewFilterPersistenceEnabled,
+  readAccountsOverviewFilterStringArray,
+  removeAccountsOverviewFilterField,
+  writeAccountsOverviewFilterField,
+} from '../utils/accountsOverviewFilterPersistence';
 
 const CODEX_TOKEN_SINGLE_EXAMPLE = `{
   "tokens": {
@@ -170,6 +178,10 @@ function inferCodexAccountProviderMode(account: CodexAccount): CodexApiProviderM
 const CODEX_USAGE_URL = 'https://platform.openai.com/usage';
 const CODEX_OVERVIEW_LAYOUT_MODE_KEY = 'agtools.codex.accounts.overview_layout_mode';
 const DEFAULT_CODEX_API_PROVIDER_ID = CODEX_API_PROVIDER_CUSTOM_ID;
+const CODEX_FILTER_PERSISTENCE_SCOPE = normalizeAccountsOverviewScope('Codex');
+const FILTER_TYPES_FIELD = 'filter_types';
+const GROUP_FILTER_FIELD = 'group_filter';
+const ACTIVE_GROUP_ID_FIELD = 'active_group_id';
 
 type CodexOverviewLayoutMode = 'compact' | 'list' | 'grid';
 
@@ -220,7 +232,11 @@ function getDirectoryPath(filePath: string): string {
 export function CodexAccountsPage() {
   const [activeTab, setActiveTab] = useState<CodexTab>('overview');
   const untaggedKey = '__untagged__';
-  const [filterTypes, setFilterTypes] = useState<string[]>([]);
+  const [filterTypes, setFilterTypes] = useState<string[]>(() =>
+    readAccountsOverviewFilterPersistenceEnabled(CODEX_FILTER_PERSISTENCE_SCOPE)
+      ? readAccountsOverviewFilterStringArray(CODEX_FILTER_PERSISTENCE_SCOPE, FILTER_TYPES_FIELD)
+      : [],
+  );
   const [exportFormat, setExportFormat] = useState<CodexExportFormat>('cockpit_tools');
   const [exportFileNameBase, setExportFileNameBase] = useState('codex_accounts');
   const [formattedExportJsonCopied, setFormattedExportJsonCopied] = useState(false);
@@ -230,8 +246,22 @@ export function CodexAccountsPage() {
 
   // ─── Codex 账号分组 ────────────────────────────────────────────
   const [codexGroups, setCodexGroups] = useState<CodexAccountGroup[]>([]);
-  const [groupFilter, setGroupFilter] = useState<string[]>([]);
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [groupFilter, setGroupFilter] = useState<string[]>(() =>
+    readAccountsOverviewFilterPersistenceEnabled(CODEX_FILTER_PERSISTENCE_SCOPE)
+      ? readAccountsOverviewFilterStringArray(CODEX_FILTER_PERSISTENCE_SCOPE, GROUP_FILTER_FIELD)
+      : [],
+  );
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(() => {
+    if (!readAccountsOverviewFilterPersistenceEnabled(CODEX_FILTER_PERSISTENCE_SCOPE)) {
+      return null;
+    }
+    const saved = readAccountsOverviewFilterField<string | null>(
+      CODEX_FILTER_PERSISTENCE_SCOPE,
+      ACTIVE_GROUP_ID_FIELD,
+      null,
+    );
+    return typeof saved === 'string' && saved.trim() ? saved : null;
+  });
   const [showCodexGroupModal, setShowCodexGroupModal] = useState(false);
   const [showAddToCodexGroupModal, setShowAddToCodexGroupModal] = useState(false);
   const [groupQuickAddGroupId, setGroupQuickAddGroupId] = useState<string | null>(null);
@@ -314,6 +344,7 @@ export function CodexAccountsPage() {
   const {
     t, maskAccountText, privacyModeEnabled, togglePrivacyMode,
     viewMode, setViewMode, searchQuery, setSearchQuery,
+    filterPersistenceEnabled, filterPersistenceScope,
     sortBy, setSortBy, sortDirection, setSortDirection,
     selected, setSelected, toggleSelect, toggleSelectAll,
     tagFilter, groupByTag, setGroupByTag, showTagFilter, setShowTagFilter,
@@ -331,6 +362,34 @@ export function CodexAccountsPage() {
     importing, openAddModal, closeAddModal,
     formatDate, normalizeTag, saveJsonFile,
   } = page;
+
+  useEffect(() => {
+    if (!filterPersistenceEnabled) {
+      removeAccountsOverviewFilterField(filterPersistenceScope, FILTER_TYPES_FIELD);
+      return;
+    }
+    writeAccountsOverviewFilterField(filterPersistenceScope, FILTER_TYPES_FIELD, filterTypes);
+  }, [filterPersistenceEnabled, filterPersistenceScope, filterTypes]);
+
+  useEffect(() => {
+    if (!filterPersistenceEnabled) {
+      removeAccountsOverviewFilterField(filterPersistenceScope, GROUP_FILTER_FIELD);
+      return;
+    }
+    writeAccountsOverviewFilterField(filterPersistenceScope, GROUP_FILTER_FIELD, groupFilter);
+  }, [filterPersistenceEnabled, filterPersistenceScope, groupFilter]);
+
+  useEffect(() => {
+    if (!filterPersistenceEnabled) {
+      removeAccountsOverviewFilterField(filterPersistenceScope, ACTIVE_GROUP_ID_FIELD);
+      return;
+    }
+    writeAccountsOverviewFilterField(
+      filterPersistenceScope,
+      ACTIVE_GROUP_ID_FIELD,
+      activeGroupId,
+    );
+  }, [activeGroupId, filterPersistenceEnabled, filterPersistenceScope]);
 
   const reloadLocalAccessState = useCallback(async () => {
     try {
@@ -2814,14 +2873,21 @@ export function CodexAccountsPage() {
     });
 
   const renderLocalAccessInlineCard = () => {
-    if (activeGroupId || groupByTag || !localAccessCollection) return null;
-
     const baseUrl = resolveLocalAccessBaseUrl();
-    const apiKeyDisplay = localAccessKeyVisible
-      ? localAccessCollection.apiKey
-      : `${localAccessCollection.apiKey.slice(0, 10)}••••••••••••`;
+    const apiKeyDisplay = !localAccessCollection
+      ? '-'
+      : localAccessKeyVisible
+        ? localAccessCollection.apiKey
+        : `${localAccessCollection.apiKey.slice(0, 10)}••••••••••••`;
     const previewAccounts = localAccessAccounts.slice(0, 3);
     const hiddenCount = Math.max(0, localAccessAccounts.length - previewAccounts.length);
+    const showLocalAccessEmptyState = !localAccessCollection || previewAccounts.length === 0;
+    const localAccessEmptyMessage = !localAccessCollection
+      ? t(
+        'codex.localAccess.configEmpty',
+        '先把账号保存到 API 服务集合，随后会自动生成地址、密钥和端口。',
+      )
+      : t('codex.localAccess.emptyMembers', '当前集合暂无账号');
 
     return (
       <div key="codex-local-access-card" className="codex-account-card folder-inline-card codex-local-access-card">
@@ -2833,13 +2899,15 @@ export function CodexAccountsPage() {
             <span className="folder-inline-name">{t('codex.localAccess.title', 'API 服务')}</span>
             <span className="folder-inline-count">{t('codex.localAccess.memberOnlyLocal', '仅监听 127.0.0.1')}</span>
           </div>
-          <span className={`codex-local-access-status ${localAccessState?.running ? 'running' : 'stopped'}`}>
-            {localAccessState?.running
-              ? t('codex.localAccess.statusRunning', '运行中')
-              : localAccessCollection.enabled
-                ? t('codex.localAccess.statusStopped', '未运行')
-                : t('codex.localAccess.statusDisabled', '已停用')}
-          </span>
+          {localAccessCollection && (
+            <span className={`codex-local-access-status ${localAccessState?.running ? 'running' : 'stopped'}`}>
+              {localAccessState?.running
+                ? t('codex.localAccess.statusRunning', '运行中')
+                : localAccessCollection.enabled
+                  ? t('codex.localAccess.statusStopped', '未运行')
+                  : t('codex.localAccess.statusDisabled', '已停用')}
+            </span>
+          )}
         </div>
 
         <div className="codex-local-access-meta">
@@ -2860,7 +2928,7 @@ export function CodexAccountsPage() {
           </div>
           <div className="codex-local-access-row">
             <span className="codex-local-access-label">{t('codex.localAccess.apiKey', '密钥')}</span>
-            <code className="codex-local-access-code" title={localAccessCollection.apiKey}>
+            <code className="codex-local-access-code" title={localAccessCollection?.apiKey || '-'}>
               {apiKeyDisplay}
             </code>
             <div className="codex-local-access-row-actions">
@@ -2871,14 +2939,16 @@ export function CodexAccountsPage() {
                 title={localAccessKeyVisible
                   ? t('codex.localAccess.hideKey', '隐藏密钥')
                   : t('codex.localAccess.showKey', '显示密钥')}
+                disabled={!localAccessCollection}
               >
                 {localAccessKeyVisible ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
               <button
                 type="button"
                 className="folder-icon-btn"
-                onClick={() => void handleCopyLocalAccessValue('apiKey', localAccessCollection.apiKey)}
+                onClick={() => void handleCopyLocalAccessValue('apiKey', localAccessCollection?.apiKey || '')}
                 title={t('common.copy', '复制')}
+                disabled={!localAccessCollection}
               >
                 {localAccessCopiedField === 'apiKey' ? <Check size={14} /> : <Copy size={14} />}
               </button>
@@ -2887,9 +2957,19 @@ export function CodexAccountsPage() {
         </div>
 
         <div className="folder-inline-preview codex-local-access-preview">
-          {previewAccounts.length === 0 ? (
-            <div className="folder-preview-item more">
-              {t('codex.localAccess.emptyMembers', '当前集合暂无账号')}
+          {showLocalAccessEmptyState ? (
+            <div className="codex-local-access-empty-state">
+              <span className="codex-local-access-empty-text">{localAccessEmptyMessage}</span>
+              <button
+                type="button"
+                className="codex-local-access-empty-action"
+                onClick={openLocalAccessMemberPicker}
+                title={t('common.shared.addAccount', '添加账号')}
+                disabled={localAccessBusy}
+              >
+                <FolderPlus size={14} />
+                <span>{t('common.shared.addAccount', '添加账号')}</span>
+              </button>
             </div>
           ) : (
             previewAccounts.map((account) => {
@@ -2953,48 +3033,48 @@ export function CodexAccountsPage() {
             {t('codex.localAccess.footerHint', '仅监听 127.0.0.1')}
           </span>
           <div className="card-actions">
-            <button
-              className="card-action-btn"
-              onClick={openLocalAccessMemberPicker}
-              title={t('common.shared.addAccount', '添加账号')}
-              disabled={localAccessBusy}
-            >
-              <FolderPlus size={14} />
-            </button>
-            <button
-              className="card-action-btn"
+              <button
+                className="card-action-btn"
+                onClick={openLocalAccessMemberPicker}
+                title={t('common.shared.addAccount', '添加账号')}
+                disabled={localAccessBusy}
+              >
+                <FolderPlus size={14} />
+              </button>
+              <button
+                className="card-action-btn"
               onClick={openLocalAccessPanel}
               title={t('codex.localAccess.dashboardAction', '服务面板')}
               disabled={localAccessBusy}
             >
               <Database size={14} />
             </button>
-            <button
-              className="card-action-btn"
-              onClick={() => void handleQuickRefreshLocalAccessQuota()}
-              title={t('common.shared.refreshQuota', '刷新配额')}
-              disabled={localAccessBusy}
-            >
-              <RotateCw size={14} className={localAccessRefreshing ? 'loading-spinner' : ''} />
-            </button>
-            <button
-              className="card-action-btn success"
-              onClick={() => void handleQuickActivateLocalAccess()}
-              title={t('codex.localAccess.activateAction', '启动 API 服务')}
-              disabled={localAccessBusy}
-            >
-              {localAccessStarting ? <RefreshCw size={14} className="loading-spinner" /> : <Play size={14} />}
-            </button>
-            <button
-              className={`card-action-btn ${localAccessCollection.enabled ? '' : 'success'}`}
-              onClick={() => void handleQuickToggleLocalAccessEnabled()}
-              title={localAccessCollection.enabled
-                ? t('codex.localAccess.disableService', '停用服务')
-                : t('codex.localAccess.enableService', '启用服务')}
-              disabled={localAccessBusy}
-            >
-              <Power size={14} />
-            </button>
+              <button
+                className="card-action-btn"
+                onClick={() => void handleQuickRefreshLocalAccessQuota()}
+                title={t('common.shared.refreshQuota', '刷新配额')}
+                disabled={localAccessBusy || !localAccessCollection}
+              >
+                <RotateCw size={14} className={localAccessRefreshing ? 'loading-spinner' : ''} />
+              </button>
+              <button
+                className="card-action-btn success"
+                onClick={() => void handleQuickActivateLocalAccess()}
+                title={t('codex.localAccess.activateAction', '启动 API 服务')}
+                disabled={localAccessBusy || !localAccessCollection}
+              >
+                {localAccessStarting ? <RefreshCw size={14} className="loading-spinner" /> : <Play size={14} />}
+              </button>
+              <button
+                className={`card-action-btn ${localAccessCollection?.enabled ? '' : 'success'}`}
+                onClick={() => void handleQuickToggleLocalAccessEnabled()}
+                title={localAccessCollection?.enabled
+                  ? t('codex.localAccess.disableService', '停用服务')
+                  : t('codex.localAccess.enableService', '启用服务')}
+                disabled={localAccessBusy || !localAccessCollection}
+              >
+                <Power size={14} />
+              </button>
           </div>
         </div>
       </div>
@@ -3002,112 +3082,112 @@ export function CodexAccountsPage() {
   };
 
   const renderInlineFolderCards = () => {
-    if (activeGroupId || groupByTag) return null;
-
     const cards: ReactElement[] = [];
     const localAccessCard = renderLocalAccessInlineCard();
     if (localAccessCard) {
       cards.push(localAccessCard);
     }
 
-    cards.push(...codexGroups.map((group) => {
-      const groupAccounts = resolveGroupAccounts(group);
-      const previewAccounts = groupAccounts.slice(0, 4);
-      const hiddenCount = Math.max(0, groupAccounts.length - previewAccounts.length);
+    if (!activeGroupId && !groupByTag) {
+      cards.push(...codexGroups.map((group) => {
+        const groupAccounts = resolveGroupAccounts(group);
+        const previewAccounts = groupAccounts.slice(0, 4);
+        const hiddenCount = Math.max(0, groupAccounts.length - previewAccounts.length);
 
-      return (
-        <div
-          key={`codex-folder-${group.id}`}
-          className="codex-account-card folder-inline-card codex-group-folder-card"
-          onClick={() => handleEnterGroup(group.id)}
-        >
-          <div className="folder-inline-header">
-            <div className="folder-inline-icon">
-              <FolderOpen size={24} />
-            </div>
-            <div className="folder-inline-info">
-              <span className="folder-inline-name">{group.name}</span>
-              <span className="folder-inline-count">
-                {t('accounts.groups.accountCount', { count: groupAccounts.length })}
-              </span>
-            </div>
-            <button
-              className="folder-icon-btn"
-              title={t('accounts.groups.addAccounts')}
-              onClick={(event) => {
-                event.stopPropagation();
-                setGroupQuickAddGroupId(group.id);
-              }}
-            >
-              <FolderPlus size={14} />
-            </button>
-            <button
-              className="folder-icon-btn"
-              title={t('accounts.groups.editTitle')}
-              onClick={(event) => {
-                event.stopPropagation();
-                setShowCodexGroupModal(true);
-              }}
-            >
-              <Pencil size={14} />
-            </button>
-            <button
-              className="folder-icon-btn folder-delete-btn"
-              title={t('accounts.groups.deleteTitle')}
-              onClick={(event) => {
-                event.stopPropagation();
-                requestDeleteGroup(group.id, group.name);
-              }}
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
-          <div className="folder-inline-preview">
-            {previewAccounts.length === 0 ? (
-              <div className="folder-preview-item more">
-                {t('accounts.groups.accountPickerEmpty')}
+        return (
+          <div
+            key={`codex-folder-${group.id}`}
+            className="codex-account-card folder-inline-card codex-group-folder-card"
+            onClick={() => handleEnterGroup(group.id)}
+          >
+            <div className="folder-inline-header">
+              <div className="folder-inline-icon">
+                <FolderOpen size={24} />
               </div>
-            ) : (
-              previewAccounts.map((account) => {
-                const presentation = resolvePresentation(account);
-                return (
-                  <div
-                    key={`${group.id}-${account.id}`}
-                    className="folder-preview-item"
-                  >
-                    <span
-                      className="folder-preview-email"
-                      title={maskAccountText(presentation.displayName)}
+              <div className="folder-inline-info">
+                <span className="folder-inline-name">{group.name}</span>
+                <span className="folder-inline-count">
+                  {t('accounts.groups.accountCount', { count: groupAccounts.length })}
+                </span>
+              </div>
+              <button
+                className="folder-icon-btn"
+                title={t('accounts.groups.addAccounts')}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setGroupQuickAddGroupId(group.id);
+                }}
+              >
+                <FolderPlus size={14} />
+              </button>
+              <button
+                className="folder-icon-btn"
+                title={t('accounts.groups.editTitle')}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setShowCodexGroupModal(true);
+                }}
+              >
+                <Pencil size={14} />
+              </button>
+              <button
+                className="folder-icon-btn folder-delete-btn"
+                title={t('accounts.groups.deleteTitle')}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  requestDeleteGroup(group.id, group.name);
+                }}
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+            <div className="folder-inline-preview">
+              {previewAccounts.length === 0 ? (
+                <div className="folder-preview-item more">
+                  {t('accounts.groups.accountPickerEmpty')}
+                </div>
+              ) : (
+                previewAccounts.map((account) => {
+                  const presentation = resolvePresentation(account);
+                  return (
+                    <div
+                      key={`${group.id}-${account.id}`}
+                      className="folder-preview-item"
                     >
-                      {maskAccountText(presentation.displayName)}
-                    </span>
-                    <span className={`tier-badge ${presentation.planClass || 'unknown'}`}>
-                      {presentation.planLabel}
-                    </span>
-                    <button
-                      type="button"
-                      className="folder-preview-remove-btn"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void handleRemoveSingleFromGroup(group.id, account.id);
-                      }}
-                      title={t('accounts.groups.removeFromGroup')}
-                      aria-label={`${t('accounts.groups.removeFromGroup')}: ${maskAccountText(presentation.displayName)}`}
-                      disabled={removingGroupAccountIds.has(account.id)}
-                    >
-                      <LogOut size={12} />
-                    </button>
-                  </div>
-                );
-              })
-            )}
-            {hiddenCount > 0 && (
-              <div className="folder-preview-item more">+{hiddenCount}</div>
-            )}
+                      <span
+                        className="folder-preview-email"
+                        title={maskAccountText(presentation.displayName)}
+                      >
+                        {maskAccountText(presentation.displayName)}
+                      </span>
+                      <span className={`tier-badge ${presentation.planClass || 'unknown'}`}>
+                        {presentation.planLabel}
+                      </span>
+                      <button
+                        type="button"
+                        className="folder-preview-remove-btn"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void handleRemoveSingleFromGroup(group.id, account.id);
+                        }}
+                        title={t('accounts.groups.removeFromGroup')}
+                        aria-label={`${t('accounts.groups.removeFromGroup')}: ${maskAccountText(presentation.displayName)}`}
+                        disabled={removingGroupAccountIds.has(account.id)}
+                      >
+                        <LogOut size={12} />
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+              {hiddenCount > 0 && (
+                <div className="folder-preview-item more">+{hiddenCount}</div>
+              )}
+            </div>
           </div>
-        </div>
-      );
-    }));
+        );
+      }));
+    }
 
     return cards.length > 0 ? cards : null;
   };
@@ -3306,134 +3386,7 @@ export function CodexAccountsPage() {
   const renderGroupTableRows = () => {
     if (activeGroupId || groupByTag) return null;
 
-    const rows: ReactElement[] = [];
-
-    if (localAccessCollection) {
-      const baseUrl = resolveLocalAccessBaseUrl();
-      const apiKeyDisplay = localAccessKeyVisible
-        ? localAccessCollection.apiKey
-        : `${localAccessCollection.apiKey.slice(0, 10)}••••••••••••`;
-      rows.push(
-        <tr key="local-access-row" className="folder-table-row codex-local-access-table-row">
-          <td />
-          <td colSpan={3}>
-            <div className="codex-local-access-table-main">
-              <div className="codex-local-access-table-title">
-                <Server size={16} />
-                <strong>{t('codex.localAccess.title', 'API 服务')}</strong>
-                <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                  {t('codex.localAccess.memberOnlyLocal', '仅监听 127.0.0.1')}
-                </span>
-              </div>
-              <div className="codex-local-access-table-meta">
-                <div className="codex-local-access-table-meta-item">
-                  <span className="codex-local-access-table-meta-label">
-                    {t('codex.localAccess.baseUrl', '地址')}
-                  </span>
-                  <code className="codex-local-access-code" title={baseUrl}>{baseUrl || '-'}</code>
-                  <button
-                    type="button"
-                    className="folder-icon-btn"
-                    onClick={() => void handleCopyLocalAccessValue('baseUrl', baseUrl)}
-                    title={t('common.copy', '复制')}
-                    disabled={!baseUrl}
-                  >
-                    {localAccessCopiedField === 'baseUrl' ? <Check size={14} /> : <Copy size={14} />}
-                  </button>
-                </div>
-                <div className="codex-local-access-table-meta-item">
-                  <span className="codex-local-access-table-meta-label">
-                    {t('codex.localAccess.apiKey', '密钥')}
-                  </span>
-                  <code className="codex-local-access-code" title={localAccessCollection.apiKey}>
-                    {apiKeyDisplay}
-                  </code>
-                  <button
-                    type="button"
-                    className="folder-icon-btn"
-                    onClick={() => setLocalAccessKeyVisible((current) => !current)}
-                    title={localAccessKeyVisible
-                      ? t('codex.localAccess.hideKey', '隐藏密钥')
-                      : t('codex.localAccess.showKey', '显示密钥')}
-                  >
-                    {localAccessKeyVisible ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                  <button
-                    type="button"
-                    className="folder-icon-btn"
-                    onClick={() => void handleCopyLocalAccessValue('apiKey', localAccessCollection.apiKey)}
-                    title={t('common.copy', '复制')}
-                  >
-                    {localAccessCopiedField === 'apiKey' ? <Check size={14} /> : <Copy size={14} />}
-                  </button>
-                </div>
-                <span className={`codex-local-access-status ${localAccessState?.running ? 'running' : 'stopped'}`}>
-                  {localAccessCollection.enabled
-                    ? (localAccessState?.running
-                      ? t('codex.localAccess.statusRunning', '运行中')
-                      : t('codex.localAccess.statusStopped', '未运行'))
-                    : t('codex.localAccess.statusDisabled', '已停用')}
-                </span>
-              </div>
-              {localAccessState?.lastError && (
-                <div className="quota-error-inline table" title={localAccessState.lastError}>
-                  <CircleAlert size={12} />
-                  <span>{localAccessState.lastError}</span>
-                </div>
-              )}
-            </div>
-          </td>
-          <td>
-            <div className="folder-table-actions">
-              <button
-                className="folder-icon-btn"
-                title={t('common.shared.addAccount', '添加账号')}
-                onClick={openLocalAccessMemberPicker}
-                disabled={localAccessBusy}
-              >
-                <FolderPlus size={14} />
-              </button>
-              <button
-                className="folder-icon-btn"
-                title={t('codex.localAccess.dashboardAction', '服务面板')}
-                onClick={openLocalAccessPanel}
-                disabled={localAccessBusy}
-              >
-                <Database size={14} />
-              </button>
-              <button
-                className="folder-icon-btn"
-                title={t('common.shared.refreshQuota', '刷新配额')}
-                onClick={() => void handleQuickRefreshLocalAccessQuota()}
-                disabled={localAccessBusy}
-              >
-                <RotateCw size={14} className={localAccessRefreshing ? 'loading-spinner' : ''} />
-              </button>
-              <button
-                className="folder-icon-btn"
-                title={t('codex.localAccess.activateAction', '启动 API 服务')}
-                onClick={() => void handleQuickActivateLocalAccess()}
-                disabled={localAccessBusy}
-              >
-                {localAccessStarting ? <RefreshCw size={14} className="loading-spinner" /> : <Play size={14} />}
-              </button>
-              <button
-                className="folder-icon-btn"
-                title={localAccessCollection.enabled
-                  ? t('codex.localAccess.disableService', '停用服务')
-                  : t('codex.localAccess.enableService', '启用服务')}
-                onClick={() => void handleQuickToggleLocalAccessEnabled()}
-                disabled={localAccessBusy}
-              >
-                <Power size={14} />
-              </button>
-            </div>
-          </td>
-        </tr>,
-      );
-    }
-
-    rows.push(...codexGroups.map((group) => {
+    const rows: ReactElement[] = codexGroups.map((group) => {
       const groupAccounts = resolveGroupAccounts(group);
       return (
         <tr
@@ -3488,13 +3441,13 @@ export function CodexAccountsPage() {
           </td>
         </tr>
       );
-    }));
+    });
 
     return rows.length > 0 ? rows : null;
   };
 
   const inlineFolderCards = renderInlineFolderCards();
-  const hasEntryCards = Boolean(inlineFolderCards && inlineFolderCards.length > 0);
+  const hasGroupEntryCards = Boolean(inlineFolderCards && inlineFolderCards.length > 1);
   const showOverviewSelectionBar =
     !groupByTag && !activeGroupId && paginatedAccounts.length > 0;
 
@@ -3630,14 +3583,14 @@ export function CodexAccountsPage() {
 
         {loading && accounts.length === 0 ? (
           <div className="loading-container"><RefreshCw size={24} className="loading-spinner" /><p>{t('common.loading', '加载中...')}</p></div>
-        ) : accounts.length === 0 && !hasEntryCards ? (
+        ) : accounts.length === 0 && !hasGroupEntryCards ? (
           <div className="empty-state"><Globe size={48} /><h3>{t('common.shared.empty.title', '暂无账号')}</h3><p>{t('codex.empty.description', '点击"添加账号"开始管理您的 Codex 账号')}</p>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '16px' }}>
               <button className="btn btn-primary" onClick={() => openAddModal('oauth')}><Plus size={16} />{t('common.shared.addAccount', '添加账号')}</button>
               <button className="btn btn-secondary" onClick={() => window.dispatchEvent(new CustomEvent('app-request-navigate', { detail: 'manual' }))}><BookOpen size={16} />{t('manual.navTitle', '功能使用手册')}</button>
             </div>
           </div>
-        ) : filteredAccounts.length === 0 && !hasEntryCards ? (
+        ) : filteredAccounts.length === 0 && !hasGroupEntryCards ? (
           <div className="empty-state"><h3>{t('common.shared.noMatch.title', '没有匹配的账号')}</h3><p>{t('common.shared.noMatch.desc', '请尝试调整搜索或筛选条件')}</p></div>
         ) : (
           <>
@@ -3654,28 +3607,28 @@ export function CodexAccountsPage() {
               </div>
             )}
             {overviewLayoutMode === 'compact' ? (
-              groupByTag ? (
-                <div className="tag-group-list">
-                  {paginatedGroupedAccounts.map(({ groupKey, items, totalCount }) => (
-                    <div key={groupKey} className="tag-group-section">
-                      <div className="tag-group-header">
-                        <span className="tag-group-title">{resolveGroupLabel(groupKey)}</span>
-                        <span className="tag-group-count">{totalCount}</span>
+              <>
+                {inlineFolderCards && (
+                  <div className="codex-group-entry-grid">
+                    {inlineFolderCards}
+                  </div>
+                )}
+                {groupByTag ? (
+                  <div className="tag-group-list">
+                    {paginatedGroupedAccounts.map(({ groupKey, items, totalCount }) => (
+                      <div key={groupKey} className="tag-group-section">
+                        <div className="tag-group-header">
+                          <span className="tag-group-title">{resolveGroupLabel(groupKey)}</span>
+                          <span className="tag-group-count">{totalCount}</span>
+                        </div>
+                        <div className="codex-compact-list">{renderCompactRows(items, groupKey)}</div>
                       </div>
-                      <div className="codex-compact-list">{renderCompactRows(items, groupKey)}</div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <>
-                  {inlineFolderCards && (
-                    <div className="codex-group-entry-grid">
-                      {inlineFolderCards}
-                    </div>
-                  )}
+                    ))}
+                  </div>
+                ) : (
                   <div className="codex-compact-list">{renderCompactRows(paginatedAccounts)}</div>
-                </>
-              )
+                )}
+              </>
             ) : viewMode === 'grid' ? (
               <div className="grid-view-container">
                 {!showOverviewSelectionBar && paginatedAccounts.length > 0 && (
@@ -3686,23 +3639,56 @@ export function CodexAccountsPage() {
                     </label>
                   </div>
                 )}
-                {groupByTag ? (<div className="tag-group-list">{paginatedGroupedAccounts.map(({ groupKey, items, totalCount }) => (<div key={groupKey} className="tag-group-section"><div className="tag-group-header"><span className="tag-group-title">{resolveGroupLabel(groupKey)}</span><span className="tag-group-count">{totalCount}</span></div>
-                  <div className="tag-group-grid codex-accounts-grid">{renderGridCards(items, groupKey)}</div></div>))}</div>
-                ) : (<div className="codex-accounts-grid">{inlineFolderCards}{renderGridCards(paginatedAccounts)}</div>)}
+                {groupByTag ? (
+                  <>
+                    {inlineFolderCards && (
+                      <div className="codex-group-entry-grid">
+                        {inlineFolderCards}
+                      </div>
+                    )}
+                    <div className="tag-group-list">
+                      {paginatedGroupedAccounts.map(({ groupKey, items, totalCount }) => (
+                        <div key={groupKey} className="tag-group-section">
+                          <div className="tag-group-header">
+                            <span className="tag-group-title">{resolveGroupLabel(groupKey)}</span>
+                            <span className="tag-group-count">{totalCount}</span>
+                          </div>
+                          <div className="tag-group-grid codex-accounts-grid">{renderGridCards(items, groupKey)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="codex-accounts-grid">{inlineFolderCards}{renderGridCards(paginatedAccounts)}</div>
+                )}
               </div>
             ) : groupByTag ? (
-              <div className="account-table-container grouped"><table className="account-table"><thead><tr>
-                <th style={{ width: 40 }}><input type="checkbox" checked={isAllPaginatedSelected} onChange={() => toggleSelectAll(paginatedIds)} /></th>
-                <th style={{ width: 260 }}>{t('common.shared.columns.email', '账号')}</th><th style={{ width: 140 }}>{t('common.shared.columns.plan', '订阅')}</th>
-                <th>{t('accounts.columns.quota', '配额状态')}</th><th className="sticky-action-header table-action-header">{t('common.shared.columns.actions', '操作')}</th></tr></thead>
-                <tbody>{paginatedGroupedAccounts.map(({ groupKey, items, totalCount }) => (<Fragment key={groupKey}><tr className="tag-group-row"><td colSpan={5}><div className="tag-group-header"><span className="tag-group-title">{resolveGroupLabel(groupKey)}</span><span className="tag-group-count">{totalCount}</span></div></td></tr>
-                  {renderTableRows(items, groupKey)}</Fragment>))}</tbody></table></div>
+              <>
+                {inlineFolderCards && (
+                  <div className="codex-group-entry-grid">
+                    {inlineFolderCards}
+                  </div>
+                )}
+                <div className="account-table-container grouped"><table className="account-table"><thead><tr>
+                  <th style={{ width: 40 }}><input type="checkbox" checked={isAllPaginatedSelected} onChange={() => toggleSelectAll(paginatedIds)} /></th>
+                  <th style={{ width: 260 }}>{t('common.shared.columns.email', '账号')}</th><th style={{ width: 140 }}>{t('common.shared.columns.plan', '订阅')}</th>
+                  <th>{t('accounts.columns.quota', '配额状态')}</th><th className="sticky-action-header table-action-header">{t('common.shared.columns.actions', '操作')}</th></tr></thead>
+                  <tbody>{paginatedGroupedAccounts.map(({ groupKey, items, totalCount }) => (<Fragment key={groupKey}><tr className="tag-group-row"><td colSpan={5}><div className="tag-group-header"><span className="tag-group-title">{resolveGroupLabel(groupKey)}</span><span className="tag-group-count">{totalCount}</span></div></td></tr>
+                    {renderTableRows(items, groupKey)}</Fragment>))}</tbody></table></div>
+              </>
             ) : (
-              <div className="account-table-container"><table className="account-table"><thead><tr>
-                <th style={{ width: 40 }}>{showOverviewSelectionBar ? null : <input type="checkbox" checked={isAllPaginatedSelected} onChange={() => toggleSelectAll(paginatedIds)} />}</th>
-                <th style={{ width: 260 }}>{t('common.shared.columns.email', '账号')}</th><th style={{ width: 140 }}>{t('common.shared.columns.plan', '订阅')}</th>
-                <th>{t('accounts.columns.quota', '配额状态')}</th><th className="sticky-action-header table-action-header">{t('common.shared.columns.actions', '操作')}</th></tr></thead>
-                <tbody>{renderGroupTableRows()}{renderTableRows(paginatedAccounts)}</tbody></table></div>
+              <>
+                {inlineFolderCards && (
+                  <div className="codex-group-entry-grid">
+                    {inlineFolderCards}
+                  </div>
+                )}
+                <div className="account-table-container"><table className="account-table"><thead><tr>
+                  <th style={{ width: 40 }}>{showOverviewSelectionBar ? null : <input type="checkbox" checked={isAllPaginatedSelected} onChange={() => toggleSelectAll(paginatedIds)} />}</th>
+                  <th style={{ width: 260 }}>{t('common.shared.columns.email', '账号')}</th><th style={{ width: 140 }}>{t('common.shared.columns.plan', '订阅')}</th>
+                  <th>{t('accounts.columns.quota', '配额状态')}</th><th className="sticky-action-header table-action-header">{t('common.shared.columns.actions', '操作')}</th></tr></thead>
+                  <tbody>{renderGroupTableRows()}{renderTableRows(paginatedAccounts)}</tbody></table></div>
+              </>
             )}
           </>
         )}
