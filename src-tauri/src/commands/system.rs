@@ -460,17 +460,19 @@ fn find_antigravity_windows_exe(root: &Path) -> Option<PathBuf> {
 #[cfg(target_os = "windows")]
 fn read_antigravity_windows_exe_metadata(root: &Path) -> Option<AntigravityInstalledVersionInfo> {
     let exe_path = find_antigravity_windows_exe(root)?;
-    let script = r#"
-$p = $args[0]
-if (-not (Test-Path -LiteralPath $p)) { exit 2 }
+    let exe_path_escaped = exe_path.to_string_lossy().replace('\'', "''");
+    let script = format!(
+        r#"$p = '{exe_path_escaped}'
+if (-not (Test-Path -LiteralPath $p)) {{ exit 2 }}
 $v = (Get-Item -LiteralPath $p).VersionInfo
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-[pscustomobject]@{
+$OutputEncoding = [System.Text.Encoding]::UTF8
+[pscustomobject]@{{
   ProductName = $v.ProductName
   ProductVersion = $v.ProductVersion
   FileVersion = $v.FileVersion
-} | ConvertTo-Json -Compress
-"#;
+}} | ConvertTo-Json -Compress"#,
+    );
     let mut command = std::process::Command::new("powershell");
     {
         use std::os::windows::process::CommandExt;
@@ -483,9 +485,8 @@ $v = (Get-Item -LiteralPath $p).VersionInfo
             "-ExecutionPolicy",
             "Bypass",
             "-Command",
-            script,
+            &script,
         ])
-        .arg(&exe_path)
         .output()
         .ok()?;
     if !output.status.success() {
