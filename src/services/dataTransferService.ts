@@ -226,6 +226,19 @@ interface ExportedCodexWakeupState {
   };
 }
 
+interface CodexSessionTransferImportSummary {
+  sourceInstanceCount: number;
+  targetInstanceCount: number;
+  exportedSessionCount: number;
+  importedSessionCount: number;
+  skippedExistingCount: number;
+  missingTargetInstanceCount: number;
+  metadataRebuildFailedCount: number;
+  backupDirs: string[];
+  items: unknown[];
+  message: string;
+}
+
 interface ExportedAccountGroup extends Omit<AccountGroup, 'accountIds'> {
   accountRefs: DataTransferAccountRef[];
 }
@@ -263,6 +276,7 @@ export interface DataTransferConfigBundle {
   codex_account_groups: ExportedCodexAccountGroup[];
   codex_model_providers: CodexModelProvider[];
   instance_stores: Partial<Record<InstancePlatform, ExportedInstanceStore>>;
+  codex_sessions?: unknown;
   antigravity_wakeup: ExportedAntigravityWakeupState;
   codex_wakeup: ExportedCodexWakeupState;
   current_account_refresh_minutes: CurrentAccountRefreshMinutesMap;
@@ -302,6 +316,7 @@ export interface DataTransferConfigImportResult {
   unresolved_account_ref_count: number;
   disabled_task_count: number;
   needs_restart: boolean;
+  codex_session_import_result?: CodexSessionTransferImportSummary | null;
 }
 
 export interface DataTransferImportResult {
@@ -831,11 +846,22 @@ function exportInstanceStore(
   };
 }
 
-function importInstanceStore(
-  _platform: InstancePlatform,
+async function resolveImportedInstanceUserDataDir(
+  platform: InstancePlatform,
+  instance: ExportedInstanceProfile,
+): Promise<string> {
+  const mapped = await invoke<string>('data_transfer_get_import_instance_dir', {
+    platform,
+    instanceId: instance.id,
+  });
+  return normalizeString(mapped) ?? instance.userDataDir;
+}
+
+async function importInstanceStore(
+  platform: InstancePlatform,
   store: ExportedInstanceStore,
   registry: AccountRegistry,
-): { store: RawInstanceStore; unresolved: number } {
+): Promise<{ store: RawInstanceStore; unresolved: number }> {
   let unresolved = 0;
 
   const defaultResolved = resolveAccountRef(store.defaultSettings.bindAccountRef, registry);
@@ -844,7 +870,7 @@ function importInstanceStore(
   }
 
   const restoredInstances = Array.isArray(store.instances)
-    ? store.instances.map((instance) => {
+    ? await Promise.all(store.instances.map(async (instance) => {
         const resolvedId = resolveAccountRef(instance.bindAccountRef, registry);
         if (instance.bindAccountRef && !resolvedId) {
           unresolved += 1;
@@ -852,8 +878,8 @@ function importInstanceStore(
         return {
           id: instance.id,
           name: instance.name,
-          userDataDir: instance.userDataDir,
-          workingDir: instance.workingDir ?? null,
+          userDataDir: await resolveImportedInstanceUserDataDir(platform, instance),
+          workingDir: null,
           extraArgs: normalizeString(instance.extraArgs) ?? '',
           bindAccountId: resolvedId,
           launchMode: instance.launchMode,
@@ -861,7 +887,7 @@ function importInstanceStore(
           lastLaunchedAt: null,
           lastPid: null,
         } as RawInstanceProfile;
-      })
+      }))
     : [];
 
   return {
@@ -1035,6 +1061,7 @@ async function exportConfigBundle(registry: AccountRegistry): Promise<DataTransf
     codexModelProviders,
     codexWakeupState,
     codexWakeupCliStatus,
+    codexSessions,
     instanceStoreEntries,
   ] = await Promise.all([
     invoke<RawUserConfig>('data_transfer_get_user_config'),
@@ -1044,6 +1071,9 @@ async function exportConfigBundle(registry: AccountRegistry): Promise<DataTransf
     codexRuntimeReady ? listCodexModelProviders() : Promise.resolve([]),
     codexRuntimeReady ? getCodexWakeupState() : Promise.resolve(EMPTY_CODEX_WAKEUP_STATE),
     codexRuntimeReady ? getCodexWakeupCliStatus() : Promise.resolve(EMPTY_CODEX_WAKEUP_CLI_STATUS),
+    codexRuntimeReady
+      ? invoke<unknown>('data_transfer_export_codex_sessions').catch(() => undefined)
+      : Promise.resolve(undefined),
     Promise.all(
       instancePlatforms.map(async (platform) => {
         const store = await invoke<RawInstanceStore>('data_transfer_get_instance_store', { platform });
@@ -1061,6 +1091,7 @@ async function exportConfigBundle(registry: AccountRegistry): Promise<DataTransf
     instance_stores: Object.fromEntries(instanceStoreEntries) as Partial<
       Record<InstancePlatform, ExportedInstanceStore>
     >,
+    codex_sessions: codexSessions,
     antigravity_wakeup: antigravityRuntimeReady
       ? exportAntigravityWakeupState(registry)
       : {
@@ -1104,6 +1135,7 @@ async function importConfigBundle(bundle: DataTransferConfigBundle): Promise<Dat
   const registry = await loadAccountRegistry();
   let unresolvedAccountRefs = 0;
   let disabledTaskCount = 0;
+  let codexSessionImportResult: CodexSessionTransferImportSummary | null = null;
 
   const userConfigImport = importUserConfig(bundle.user_config, registry);
   unresolvedAccountRefs += userConfigImport.unresolved;
@@ -1143,12 +1175,19 @@ async function importConfigBundle(bundle: DataTransferConfigBundle): Promise<Dat
     if (!availableInstancePlatforms.has(platform)) continue;
     const store = bundle.instance_stores[platform];
     if (!store) continue;
-    const imported = importInstanceStore(platform, store, registry);
+    const imported = await importInstanceStore(platform, store, registry);
     unresolvedAccountRefs += imported.unresolved;
     await invoke('data_transfer_replace_instance_store', {
       platform,
       store: imported.store,
     });
+  }
+
+  if (codexRuntimeReady && bundle.codex_sessions !== undefined) {
+    codexSessionImportResult = await invoke<CodexSessionTransferImportSummary>(
+      'data_transfer_import_codex_sessions',
+      { bundle: bundle.codex_sessions },
+    );
   }
 
   if (antigravityRuntimeReady) {
@@ -1246,6 +1285,7 @@ async function importConfigBundle(bundle: DataTransferConfigBundle): Promise<Dat
     unresolved_account_ref_count: unresolvedAccountRefs,
     disabled_task_count: disabledTaskCount,
     needs_restart: needsRestart,
+    codex_session_import_result: codexSessionImportResult,
   };
 }
 

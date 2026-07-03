@@ -130,6 +130,7 @@ Core Shell + Platform Package + Remote React UI + Sidecar Adapter + runtimeReady
 13. 平台包 Release asset 必须不可变：同名 zip 已存在时禁止 `--clobber` 覆盖；CI 必须下载远端同名资产并比较 sha256，相同则跳过上传，不同则失败并要求提升平台包版本。
 14. `platform-packages/history/<platformId>.json` 是平台历史版本索引，必须由 `scripts/build-platform-package-history.cjs` 基于当前发布 index 生成或合并；同一版本号只能对应同一份 metadata 和 zip sha，禁止手动改历史索引指向不同 zip。
 15. 用户安装最新版本、历史版本、本地包或 bootstrap 包都必须校验 `downloadSizeBytes` 与 `sha256`；历史版本能力不得成为绕过校验或执行未校验 remote UI 的入口。
+16. 远端单平台或少数平台正式发布必须在 `.github/workflows/platform-packages.yml` 的 `platforms` 输入中显式填写目标平台包 id；workflow 只能构建、上传、校验这些目标平台，并在聚合 index 时保留非目标平台现有版本和历史。`platforms` 留空只允许在明确全平台重建/发布时使用。
 
 ### 5.1 单平台升级流程
 
@@ -141,18 +142,24 @@ Core Shell + Platform Package + Remote React UI + Sidecar Adapter + runtimeReady
 2. 修改 Tauri/Rust 宿主、数据库结构、全局配置、主应用依赖、updater 或安装器。
 3. 平台包需要的新能力旧主应用无法提供，且无法仅通过提高 `minCoreVersion` 隔离。
 
+发布顺序简则：
+
+1. 纯平台包改动可只发对应平台 zip，远端 workflow 必须填写 `platforms`。
+2. 平台 zip 依赖新宿主能力时，必须先发布宿主包，再发布平台 zip，并把 `minCoreVersion` 指向已发布的宿主版本。
+3. 平台 zip 必须先完成构建、上传和 size/sha256 校验，最后才更新 `platform-packages/index.json` 与 history。
+
 单平台升级步骤：
 
 1. 修改目标平台包代码和资源，只触碰该平台边界内文件。
 2. 提升 `platform-packages/<platformId>/manifest.json` 与 `runtime/index.json` 中的平台包版本，并补平台包 `changelog`；不要改 `package.json` 主应用版本，也不要改主应用 `CHANGELOG.md` / `CHANGELOG.zh-CN.md`。
 3. 如平台包依赖新的 Core Shell 能力，必须提高 `minCoreVersion`，避免旧主应用误安装。
-4. 为每个目标 OS/arch 构建 artifact。推荐使用 `.github/workflows/platform-packages.yml`；本地构建示例：
+4. 为每个目标 OS/arch 构建 artifact。推荐使用 `.github/workflows/platform-packages.yml`，并在 `platforms` 输入中填写本次发布的平台包 id（例如 `antigravity,antigravity_ide`）；本地构建示例：
    ```bash
    npm run package:platform -- --platform <platformId> --os windows --arch x86_64 --filename-template os-arch --metadata-out /tmp/<platformId>-windows-x86_64.json
    ```
 5. 用 metadata 汇总远端 index：
    ```bash
-   npm run package:platform-index -- --metadata-dir platform-packages/dist-ci --verify-zip-dir platform-packages/dist-ci --require-os-arch macos/aarch64,macos/x86_64,linux/x86_64,linux/aarch64,windows/x86_64 --output platform-packages/dist-ci/index.json
+   npm run package:platform-index -- --metadata-dir platform-packages/dist-ci --verify-zip-dir platform-packages/dist-ci --platforms <platformId> --require-os-arch macos/aarch64,macos/x86_64,linux/x86_64,linux/aarch64,windows/x86_64 --output platform-packages/dist-ci/index.json
    ```
 6. 用发布 index 合并历史索引：
    ```bash

@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
-import { Archive, BookOpenText, Download, History, MoreHorizontal, RefreshCw, RotateCw, Trash2 } from 'lucide-react';
+import {
+  Archive,
+  BookOpenText,
+  Download,
+  History,
+  MoreHorizontal,
+  RefreshCw,
+  RotateCw,
+  Trash2,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { PlatformId } from '../types/platform';
@@ -1679,7 +1688,10 @@ export function PlatformPackageToolbar({
   };
 
   return (
-    <div className={`platform-package-toolbar ${className || ''}`.trim()} ref={rootRef}>
+    <div
+      className={`platform-package-toolbar ${className || ''}`.trim()}
+      ref={rootRef}
+    >
       {isHotUpdate && (
         <button
           type="button"
@@ -1705,21 +1717,6 @@ export function PlatformPackageToolbar({
             ? <RefreshCw size={15} className="loading-spinner" />
             : <RefreshCw size={15} />}
           <span>{t('platformLayout.packageReload', '重载')}</span>
-        </button>
-      )}
-
-      {hasInstalledPackage && (
-        <button
-          type="button"
-          className="platform-package-inline-action is-danger"
-          title={t('platformLayout.packageUninstall', '卸载')}
-          onClick={() => confirmAction('uninstall')}
-          disabled={operating}
-        >
-          {actionKey === `${platformId}:uninstall`
-            ? <RefreshCw size={15} className="loading-spinner" />
-            : <Trash2 size={15} />}
-          <span>{t('platformLayout.packageUninstall', '卸载')}</span>
         </button>
       )}
 
@@ -1768,17 +1765,6 @@ export function PlatformPackageToolbar({
 
           {isHotUpdate ? (
             <div className="platform-package-menu-actions">
-              <button
-                type="button"
-                className="platform-package-menu-action"
-                onClick={handleCheckUpdate}
-                disabled={operating}
-                role="menuitem"
-                title={t('platformLayout.packageCheckUpdate', '检查更新')}
-              >
-                <RotateCw size={14} className={actionKey === `${platformId}:check` ? 'loading-spinner' : ''} />
-                <span>{t('platformLayout.packageCheckUpdateShort', '检查')}</span>
-              </button>
               <button
                 type="button"
                 className="platform-package-menu-action"
@@ -1833,19 +1819,6 @@ export function PlatformPackageToolbar({
                       ? t('platformLayout.packageRepair', '修复')
                       : t('platformLayout.packageDownload', '下载')}
                   </span>
-                </button>
-              )}
-              {canUpdate && (
-                <button
-                  type="button"
-                  className="platform-package-menu-action is-primary"
-                  onClick={showUpdateDialog}
-                  disabled={operating}
-                  role="menuitem"
-                  title={t('platformLayout.packageUpdate', '更新')}
-                >
-                  <RefreshCw size={14} className={actionKey === `${platformId}:update` ? 'loading-spinner' : ''} />
-                  <span>{t('platformLayout.packageUpdate', '更新')}</span>
                 </button>
               )}
               {hasInstalledPackage && (

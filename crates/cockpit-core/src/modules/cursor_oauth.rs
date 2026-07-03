@@ -42,6 +42,38 @@ lazy_static::lazy_static! {
     static ref PENDING_OAUTH_STATE: Arc<Mutex<Option<PendingOAuthState>>> = Arc::new(Mutex::new(None));
 }
 
+fn format_error_chain(error: &(dyn std::error::Error + 'static)) -> String {
+    let mut parts = vec![error.to_string()];
+    let mut source = error.source();
+    while let Some(err) = source {
+        let detail = err.to_string();
+        if !detail.trim().is_empty() && parts.last().map(|item| item != &detail).unwrap_or(true) {
+            parts.push(detail);
+        }
+        source = err.source();
+    }
+    parts.join(" | caused by: ")
+}
+
+fn format_reqwest_error(error: &reqwest::Error) -> String {
+    let mut tags = Vec::new();
+    if error.is_timeout() {
+        tags.push("timeout");
+    }
+    if error.is_connect() {
+        tags.push("connect");
+    }
+    if error.is_request() {
+        tags.push("request");
+    }
+    let detail = format_error_chain(error);
+    if tags.is_empty() {
+        detail
+    } else {
+        format!("{} [{}]", detail, tags.join(","))
+    }
+}
+
 fn now_timestamp() -> i64 {
     chrono::Utc::now().timestamp()
 }
@@ -136,7 +168,7 @@ pub async fn complete_login(login_id: &str) -> Result<CursorImportPayload, Strin
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))
         .build()
-        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", format_reqwest_error(&e)))?;
 
     // CURSOR_POLL_ENDPOINT 使用 HTTPS（https://api2.cursor.sh），code_verifier 已通过 TLS 加密传输
     // lgtm[rs/cleartext-transmission] 实际通过 HTTPS 传输，非明文
@@ -192,7 +224,7 @@ pub async fn complete_login(login_id: &str) -> Result<CursorImportPayload, Strin
                 let body = resp
                     .text()
                     .await
-                    .map_err(|e| format!("读取轮询响应失败: {}", e))?;
+                    .map_err(|e| format!("读取轮询响应失败: {}", format_reqwest_error(&e)))?;
 
                 let poll_data: PollResponse =
                     serde_json::from_str(&body).map_err(|e| format!("解析轮询响应失败: {}", e))?;
@@ -249,7 +281,10 @@ pub async fn complete_login(login_id: &str) -> Result<CursorImportPayload, Strin
                 tokio::time::sleep(std::time::Duration::from_millis(OAUTH_POLL_INTERVAL_MS)).await;
             }
             Err(err) => {
-                logger::log_warn(&format!("[Cursor OAuth] 轮询请求失败: {}, 将重试", err));
+                logger::log_warn(&format!(
+                    "[Cursor OAuth] 轮询请求失败: {}, 将重试",
+                    format_reqwest_error(&err)
+                ));
                 tokio::time::sleep(std::time::Duration::from_millis(OAUTH_POLL_INTERVAL_MS * 2))
                     .await;
             }

@@ -31,6 +31,7 @@ Options:
   --history-dir <path>           Existing immutable history dir. Same-version entries reuse published artifacts.
   --output <path>                Output merged index JSON.
   --download-base-url <url>      Override artifact downloadUrl with <url>/<zipName>.
+  --platforms <list>             Comma list of package ids to merge. Empty merges all packages.
   --require-os-arch <list>       Comma list such as macos/aarch64,linux/x86_64.
   --verify-zip-dir <path>        Verify zip size and sha256 against metadata.
 `);
@@ -58,12 +59,25 @@ function parseArgs(argv) {
     else if (arg === '--history-dir') args.historyDir = path.resolve(ROOT, next);
     else if (arg === '--output') args.output = path.resolve(ROOT, next);
     else if (arg === '--download-base-url') args.downloadBaseUrl = next.replace(/\/+$/, '');
+    else if (arg === '--platforms') args.platformIds = parsePlatformIds(next);
     else if (arg === '--require-os-arch') args.requiredTargets = parseTargets(next);
     else if (arg === '--verify-zip-dir') args.verifyZipDir = path.resolve(ROOT, next);
     else fail(`Unknown argument: ${arg}`);
   }
 
   return args;
+}
+
+function parsePlatformIds(value) {
+  const seen = new Set();
+  const ids = [];
+  for (const id of String(value || '').split(',').map((item) => item.trim()).filter(Boolean)) {
+    if (!/^[a-zA-Z0-9._-]+$/.test(id)) fail(`Invalid --platforms package id: ${id}`);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
 }
 
 function parseTargets(value) {
@@ -99,13 +113,14 @@ function readPackageManifests() {
   return manifestsById;
 }
 
-function mergePackageManifests(baseIndex) {
+function mergePackageManifests(baseIndex, platformIds) {
   const manifestsById = readPackageManifests();
+  const selectedIds = new Set(platformIds || []);
   const packages = [];
 
   for (const pkg of baseIndex.packages || []) {
     const manifest = manifestsById.get(pkg.id);
-    if (!manifest) {
+    if (!manifest || (selectedIds.size > 0 && !selectedIds.has(pkg.id))) {
       packages.push(pkg);
       continue;
     }
@@ -246,13 +261,22 @@ function collectMetadata(args) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
-  const baseIndex = mergePackageManifests(readJson(args.baseIndex, 'base platform package index'));
+  const selectedIds = new Set(args.platformIds || []);
+  const baseIndex = mergePackageManifests(readJson(args.baseIndex, 'base platform package index'), args.platformIds);
   const byPackage = collectMetadata(args);
   const rows = [];
+  const indexedIds = new Set((baseIndex.packages || []).map((pkg) => pkg.id));
+  for (const id of selectedIds) {
+    if (!indexedIds.has(id)) fail(`--platforms package id is not in base index: ${id}`);
+  }
 
   const merged = {
     ...baseIndex,
     packages: (baseIndex.packages || []).map((pkg) => {
+      if (selectedIds.size > 0 && !selectedIds.has(pkg.id)) {
+        return pkg;
+      }
+
       const packageMap = byPackage.get(pkg.id);
       if (!packageMap) fail(`${pkg.id}: missing artifact metadata`);
       if (args.requiredTargets.length > 0) {

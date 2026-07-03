@@ -78,6 +78,7 @@ const CODEX_LOCAL_ACCESS_DEFAULT_CLIENT_URL_HOST: &str = "localhost";
 const CODEX_LOCAL_ACCESS_API_PORT_ENV: &str = "COCKPIT_CODEX_API_SERVICE_PORT";
 const CODEX_LOCAL_ACCESS_LEGACY_API_PORT_ENV: &str = "COCKPIT_TOOLS_API_PORT";
 const CODEX_LOCAL_ACCESS_DEV_DEFAULT_PORT: u16 = 12345;
+const DEFAULT_MODEL_PRICING_VERSION: u64 = 1;
 const CODEX_LOCAL_ACCESS_TAKEOVER_BACKUP_VERSION: u32 = 1;
 const CODEX_LOCAL_ACCESS_RUNTIME_PROVIDER_ID: &str = "codex_local_access";
 const CODEX_LOCAL_ACCESS_RUNTIME_ACCOUNT_ID: &str = "codex_local_access_runtime";
@@ -4064,6 +4065,7 @@ fn compare_routing_candidates(
             compare_option_desc(left.plan_rank, right.plan_rank)
                 .then_with(|| compare_option_desc(left.remaining_quota, right.remaining_quota))
         }
+        CodexLocalAccessRoutingStrategy::SingleAccount => Ordering::Equal,
         CodexLocalAccessRoutingStrategy::QuotaHighFirst => {
             compare_option_desc(left.remaining_quota, right.remaining_quota)
                 .then_with(|| compare_option_desc(left.plan_rank, right.plan_rank))
@@ -4327,6 +4329,9 @@ fn apply_routing_strategy(
     custom_rules: &[CodexLocalAccessCustomRoutingRule],
     start: usize,
 ) -> Vec<String> {
+    if strategy == CodexLocalAccessRoutingStrategy::SingleAccount {
+        return account_ids.to_vec();
+    }
     if strategy == CodexLocalAccessRoutingStrategy::Custom {
         return apply_custom_routing_strategy(account_ids, custom_rules, start);
     }
@@ -4606,14 +4611,28 @@ fn calculate_usage_cost_usd(
     let (Some(usage), Some(pricing)) = (usage, pricing) else {
         return 0.0;
     };
-    let cached_tokens = usage.cached_tokens.min(usage.input_tokens);
-    let normal_input_tokens = usage.input_tokens.saturating_sub(cached_tokens);
+    calculate_usage_cost_usd_from_tokens(
+        usage.input_tokens,
+        usage.output_tokens,
+        usage.cached_tokens,
+        pricing,
+    )
+}
+
+fn calculate_usage_cost_usd_from_tokens(
+    input_tokens: u64,
+    output_tokens: u64,
+    cached_tokens: u64,
+    pricing: &CodexLocalAccessModelPricing,
+) -> f64 {
+    let cached_tokens = cached_tokens.min(input_tokens);
+    let normal_input_tokens = input_tokens.saturating_sub(cached_tokens);
     let cached_input_price = pricing
         .cached_input_usd_per_million
         .unwrap_or(pricing.input_usd_per_million);
     let cost = (normal_input_tokens as f64 * pricing.input_usd_per_million
         + cached_tokens as f64 * cached_input_price
-        + usage.output_tokens as f64 * pricing.output_usd_per_million)
+        + output_tokens as f64 * pricing.output_usd_per_million)
         / 1_000_000.0;
     if cost.is_finite() && cost > 0.0 {
         cost
@@ -4776,6 +4795,7 @@ fn open_local_access_logs_db_once(path: &Path) -> Result<Connection, SqliteError
             cached_tokens INTEGER NOT NULL DEFAULT 0,
             reasoning_tokens INTEGER NOT NULL DEFAULT 0,
             estimated_cost_usd REAL NOT NULL DEFAULT 0,
+            model_pricing_version INTEGER NOT NULL DEFAULT 1,
             input_usd_per_million REAL NOT NULL DEFAULT 0,
             output_usd_per_million REAL NOT NULL DEFAULT 0,
             cached_input_usd_per_million REAL
@@ -4845,6 +4865,11 @@ fn open_local_access_logs_db_once(path: &Path) -> Result<Connection, SqliteError
         &conn,
         "estimated_cost_usd",
         "estimated_cost_usd REAL NOT NULL DEFAULT 0",
+    )?;
+    ensure_request_logs_column(
+        &conn,
+        "model_pricing_version",
+        "model_pricing_version INTEGER NOT NULL DEFAULT 1",
     )?;
     ensure_request_logs_column(
         &conn,
@@ -4983,10 +5008,11 @@ fn insert_local_access_usage_event(
             cached_tokens,
             reasoning_tokens,
             estimated_cost_usd,
+            model_pricing_version,
             input_usd_per_million,
             output_usd_per_million,
             cached_input_usd_per_million
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25)
         "#,
         params![
             local_access_log_event_key(event),
@@ -5013,6 +5039,7 @@ fn insert_local_access_usage_event(
             event.cached_tokens as i64,
             event.reasoning_tokens as i64,
             event.estimated_cost_usd,
+            event.model_pricing_version as i64,
             event.input_usd_per_million,
             event.output_usd_per_million,
             event.cached_input_usd_per_million,
@@ -5080,6 +5107,7 @@ fn usage_event_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<CodexLocalA
         cached_tokens: read_u64("cached_tokens")?,
         reasoning_tokens: read_u64("reasoning_tokens")?,
         estimated_cost_usd: row.get("estimated_cost_usd")?,
+        model_pricing_version: read_u64("model_pricing_version")?,
         input_usd_per_million: row.get("input_usd_per_million")?,
         output_usd_per_million: row.get("output_usd_per_million")?,
         cached_input_usd_per_million: row.get("cached_input_usd_per_million")?,
@@ -5114,6 +5142,7 @@ fn load_local_access_usage_events_since(
                 cached_tokens,
                 reasoning_tokens,
                 estimated_cost_usd,
+                model_pricing_version,
                 input_usd_per_million,
                 output_usd_per_million,
                 cached_input_usd_per_million
@@ -5128,6 +5157,43 @@ fn load_local_access_usage_events_since(
         .map_err(|e| format!("读取 API 服务日志失败: {}", e))?;
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("解析 API 服务日志失败: {}", e))
+}
+
+fn rebuild_stats_from_request_logs() -> Result<CodexLocalAccessStats, String> {
+    let now = now_ms();
+    let all_events = load_local_access_usage_events_since(i64::MIN)?;
+    if all_events.is_empty() {
+        let mut stats = empty_stats_snapshot();
+        stats.updated_at = now;
+        normalize_stats(&mut stats);
+        return Ok(stats);
+    }
+
+    let since = all_events
+        .first()
+        .map(|event| event.timestamp)
+        .unwrap_or(now)
+        .min(now);
+    let mut all_time = empty_stats_window(since, now);
+    for event in &all_events {
+        apply_usage_event_to_window(&mut all_time, event);
+    }
+    sort_usage_accounts(&mut all_time.accounts);
+    sort_usage_models(&mut all_time.models);
+    sort_usage_api_keys(&mut all_time.api_keys);
+
+    let mut stats = CodexLocalAccessStats {
+        since,
+        updated_at: all_time.updated_at.max(now),
+        totals: all_time.totals,
+        accounts: all_time.accounts,
+        models: all_time.models,
+        api_keys: all_time.api_keys,
+        events: all_events,
+        ..CodexLocalAccessStats::default()
+    };
+    normalize_stats(&mut stats);
+    Ok(stats)
 }
 
 fn stats_range_since(stats_range: Option<&str>) -> Option<i64> {
@@ -5294,6 +5360,7 @@ pub async fn query_local_access_usage_events(
             cached_tokens,
             reasoning_tokens,
             estimated_cost_usd,
+            model_pricing_version,
             input_usd_per_million,
             output_usd_per_million,
             cached_input_usd_per_million
@@ -5343,6 +5410,95 @@ pub async fn query_local_access_usage_events(
     })
 }
 
+fn reprice_request_logs_for_collection(
+    conn: &mut Connection,
+    collection: &CodexLocalAccessCollection,
+) -> Result<usize, String> {
+    let rows = {
+        let mut stmt = conn
+            .prepare(
+                r#"
+                SELECT id, model_id, input_tokens, output_tokens, cached_tokens
+                FROM request_logs
+                "#,
+            )
+            .map_err(|e| format!("准备 API 服务日志价格重算失败: {}", e))?;
+        let rows = stmt
+            .query_map([], |row| {
+                let read_u64 = |index: usize| -> rusqlite::Result<u64> {
+                    let value: i64 = row.get(index)?;
+                    Ok(value.max(0) as u64)
+                };
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    read_u64(2)?,
+                    read_u64(3)?,
+                    read_u64(4)?,
+                ))
+            })
+            .map_err(|e| format!("读取 API 服务日志价格重算行失败: {}", e))?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("解析 API 服务日志价格重算行失败: {}", e))?
+    };
+
+    if rows.is_empty() {
+        return Ok(0);
+    }
+
+    let tx = conn
+        .transaction()
+        .map_err(|e| format!("开启 API 服务日志价格重算事务失败: {}", e))?;
+    let mut updated = 0usize;
+    for (row_id, model_id, input_tokens, output_tokens, cached_tokens) in rows {
+        let pricing = resolve_model_pricing(Some(collection), Some(&model_id));
+        let (estimated_cost_usd, input_price, output_price, cached_input_price) =
+            if let Some(pricing) = pricing.as_ref() {
+                (
+                    calculate_usage_cost_usd_from_tokens(
+                        input_tokens,
+                        output_tokens,
+                        cached_tokens,
+                        pricing,
+                    ),
+                    pricing.input_usd_per_million,
+                    pricing.output_usd_per_million,
+                    pricing.cached_input_usd_per_million,
+                )
+            } else {
+                (0.0, 0.0, 0.0, None)
+            };
+        let changed = tx
+            .execute(
+                r#"
+                UPDATE request_logs
+                SET
+                    estimated_cost_usd = ?1,
+                    model_pricing_version = ?2,
+                    input_usd_per_million = ?3,
+                    output_usd_per_million = ?4,
+                    cached_input_usd_per_million = ?5
+                WHERE id = ?6
+                "#,
+                params![
+                    estimated_cost_usd,
+                    collection
+                        .model_pricing_version
+                        .max(DEFAULT_MODEL_PRICING_VERSION) as i64,
+                    input_price,
+                    output_price,
+                    cached_input_price,
+                    row_id,
+                ],
+            )
+            .map_err(|e| format!("更新 API 服务日志价格重算行失败: {}", e))?;
+        updated = updated.saturating_add(changed);
+    }
+    tx.commit()
+        .map_err(|e| format!("提交 API 服务日志价格重算失败: {}", e))?;
+    Ok(updated)
+}
+
 fn append_usage_event(
     events: &mut Vec<CodexLocalAccessUsageEvent>,
     now: i64,
@@ -5361,6 +5517,7 @@ fn append_usage_event(
     latency_ms: u64,
     usage: Option<&UsageCapture>,
     pricing: Option<&CodexLocalAccessModelPricing>,
+    model_pricing_version: u64,
     estimated_cost_usd: f64,
 ) -> CodexLocalAccessUsageEvent {
     let usage = usage.cloned().unwrap_or_default();
@@ -5385,6 +5542,7 @@ fn append_usage_event(
         cached_tokens: usage.cached_tokens,
         reasoning_tokens: usage.reasoning_tokens,
         estimated_cost_usd,
+        model_pricing_version: model_pricing_version.max(DEFAULT_MODEL_PRICING_VERSION),
         input_usd_per_million: pricing
             .map(|item| item.input_usd_per_million)
             .unwrap_or_default(),
@@ -6407,6 +6565,7 @@ fn sidecar_disable_image_generation_value(
 fn sidecar_routing_strategy_value(strategy: CodexLocalAccessRoutingStrategy) -> &'static str {
     match strategy {
         CodexLocalAccessRoutingStrategy::Auto => "auto",
+        CodexLocalAccessRoutingStrategy::SingleAccount => "single_account",
         CodexLocalAccessRoutingStrategy::QuotaHighFirst => "quota_high_first",
         CodexLocalAccessRoutingStrategy::QuotaLowFirst => "quota_low_first",
         CodexLocalAccessRoutingStrategy::PlanHighFirst => "plan_high_first",
@@ -7152,7 +7311,13 @@ async fn prepare_sidecar_launch_config_in_dir(
     );
     config.insert(
         "max-retry-credentials".to_string(),
-        json!(collection.max_retry_credentials as i32),
+        json!(
+            if collection.routing_strategy == CodexLocalAccessRoutingStrategy::SingleAccount {
+                1
+            } else {
+                collection.max_retry_credentials as i32
+            }
+        ),
     );
     config.insert(
         "max-retry-interval".to_string(),
@@ -7291,6 +7456,27 @@ fn normalized_sidecar_error_category(event: &SidecarUsageEvent) -> Option<String
         .unwrap_or(false)
     {
         return Some("stream_incomplete".to_string());
+    }
+    let sidecar_category = event
+        .error_category
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if matches!(
+        sidecar_category,
+        None | Some("request_failed") | Some("upstream_error")
+    ) {
+        if let Some(status) = event
+            .status
+            .and_then(|status| StatusCode::from_u16(status).ok())
+        {
+            if let Some(category) = classify_upstream_error_category(
+                status,
+                event.error_message.as_deref().unwrap_or_default(),
+            ) {
+                return Some(category.to_string());
+            }
+        }
     }
     event
         .error_category
@@ -8270,12 +8456,32 @@ fn request_ordered_account_ids(
     start: usize,
     affinity_account_id: Option<&str>,
 ) -> Vec<String> {
+    if collection.routing_strategy == CodexLocalAccessRoutingStrategy::SingleAccount {
+        return scoped_account_ids.to_vec();
+    }
     if scoped_account_ids == collection.account_ids.as_slice()
         && collection.routing_strategy == CodexLocalAccessRoutingStrategy::Custom
     {
         return collection.account_ids.clone();
     }
     build_ordered_account_ids(scoped_account_ids, start, affinity_account_id)
+}
+
+fn max_credential_attempts_for_collection(
+    collection: &CodexLocalAccessCollection,
+    total: usize,
+) -> usize {
+    if collection.routing_strategy == CodexLocalAccessRoutingStrategy::SingleAccount {
+        return 1;
+    }
+    let configured_max_credentials = collection.max_retry_credentials as usize;
+    if configured_max_credentials == 0 {
+        total
+    } else {
+        configured_max_credentials.min(total)
+    }
+    .min(MAX_RETRY_CREDENTIALS_PER_REQUEST)
+    .max(1)
 }
 
 fn allocate_random_local_port(bind_host: &str) -> Result<u16, String> {
@@ -9458,6 +9664,10 @@ fn sanitize_collection_with_accounts(
         changed = true;
     }
     collection.model_pricings = normalized_model_pricings;
+    if collection.model_pricing_version < DEFAULT_MODEL_PRICING_VERSION {
+        collection.model_pricing_version = DEFAULT_MODEL_PRICING_VERSION;
+        changed = true;
+    }
 
     let original_excluded_models = std::mem::take(&mut collection.excluded_models);
     let normalized_excluded_models = normalize_model_rule_list(original_excluded_models.clone());
@@ -9522,6 +9732,7 @@ async fn ensure_runtime_loaded_without_start() -> Result<(), String> {
             custom_routing_rules: Vec::new(),
             account_model_rules: Vec::new(),
             model_aliases: Vec::new(),
+            model_pricing_version: DEFAULT_MODEL_PRICING_VERSION,
             model_pricings: Vec::new(),
             excluded_models: Vec::new(),
             session_affinity: true,
@@ -10364,6 +10575,12 @@ async fn record_request_stats_with_meta(
         let now = now_ms();
         let usage_ref = usage.as_ref();
         let pricing = resolve_model_pricing(runtime.collection.as_ref(), model_id);
+        let model_pricing_version = runtime
+            .collection
+            .as_ref()
+            .map(|collection| collection.model_pricing_version)
+            .unwrap_or(DEFAULT_MODEL_PRICING_VERSION)
+            .max(DEFAULT_MODEL_PRICING_VERSION);
         let estimated_cost_usd = calculate_usage_cost_usd(usage_ref, pricing.as_ref());
         let gateway_mode = runtime.collection.as_ref().map(collection_gateway_mode);
         if runtime.stats.since <= 0 {
@@ -10432,6 +10649,7 @@ async fn record_request_stats_with_meta(
             latency_ms,
             usage_ref,
             pricing.as_ref(),
+            model_pricing_version,
             estimated_cost_usd,
         );
 
@@ -10590,6 +10808,7 @@ fn new_empty_local_access_collection() -> Result<CodexLocalAccessCollection, Str
         custom_routing_rules: Vec::new(),
         account_model_rules: Vec::new(),
         model_aliases: Vec::new(),
+        model_pricing_version: DEFAULT_MODEL_PRICING_VERSION,
         model_pricings: Vec::new(),
         excluded_models: Vec::new(),
         session_affinity: true,
@@ -13162,6 +13381,7 @@ pub async fn save_local_access_accounts(
                 custom_routing_rules: Vec::new(),
                 account_model_rules: Vec::new(),
                 model_aliases: Vec::new(),
+                model_pricing_version: DEFAULT_MODEL_PRICING_VERSION,
                 model_pricings: Vec::new(),
                 excluded_models: Vec::new(),
                 session_affinity: true,
@@ -13354,7 +13574,18 @@ pub async fn update_local_access_model_pricings(
         return Err("本地接入集合尚未创建".to_string());
     };
 
-    collection.model_pricings = normalize_model_pricings(model_pricings);
+    let normalized_model_pricings = normalize_model_pricings(model_pricings);
+    if normalized_model_pricings != collection.model_pricings {
+        collection.model_pricing_version = collection
+            .model_pricing_version
+            .max(DEFAULT_MODEL_PRICING_VERSION)
+            .saturating_add(1);
+    } else {
+        collection.model_pricing_version = collection
+            .model_pricing_version
+            .max(DEFAULT_MODEL_PRICING_VERSION);
+    }
+    collection.model_pricings = normalized_model_pricings;
     collection.updated_at = now_ms();
     save_collection_to_disk(&collection)?;
 
@@ -13364,6 +13595,43 @@ pub async fn update_local_access_model_pricings(
     }
 
     snapshot_state().await
+}
+
+pub async fn reprice_local_access_request_logs() -> Result<CodexLocalAccessState, String> {
+    ensure_runtime_loaded_without_start().await?;
+
+    let collection = {
+        let runtime = gateway_runtime().lock().await;
+        runtime
+            .collection
+            .clone()
+            .ok_or_else(|| "本地接入集合尚未创建".to_string())?
+    };
+
+    let mut conn = open_local_access_logs_db()
+        .map_err(|e| format!("打开 API 服务请求日志数据库失败: {}", e))?;
+    let updated_count = reprice_request_logs_for_collection(&mut conn, &collection)?;
+    drop(conn);
+
+    let loaded_stats = rebuild_stats_from_request_logs()?;
+    save_stats_to_disk(&loaded_stats)?;
+
+    {
+        let mut runtime = gateway_runtime().lock().await;
+        runtime.stats = loaded_stats;
+        runtime.stats_dirty = false;
+        runtime.stats_flush_inflight = false;
+    }
+
+    logger::log_codex_api_info(&format!(
+        "API 服务请求日志价格重算完成: updated_rows={}, pricing_version={}",
+        updated_count,
+        collection
+            .model_pricing_version
+            .max(DEFAULT_MODEL_PRICING_VERSION)
+    ));
+
+    snapshot_state_without_gateway_reload().await
 }
 
 pub async fn update_local_access_routing_options(
@@ -14785,13 +15053,19 @@ fn classify_upstream_error_category(status: StatusCode, body: &str) -> Option<&'
     if status == StatusCode::UNAUTHORIZED {
         return Some("auth_unavailable");
     }
-    if parse_codex_retry_after(status, body).is_some() {
+    let lower = body.to_ascii_lowercase();
+    let quota_exhausted = lower.contains("usage_limit_reached")
+        || lower.contains("limit reached")
+        || lower.contains("insufficient_quota")
+        || lower.contains("quota exceeded");
+    let model_capacity =
+        lower.contains("selected model is at capacity") || lower.contains("model is at capacity");
+    if parse_codex_retry_after(status, body).is_some() || quota_exhausted {
         return Some("usage_limit_reached");
     }
     if status == StatusCode::TOO_MANY_REQUESTS {
         return Some("rate_limited");
     }
-    let lower = body.to_ascii_lowercase();
     if lower.contains("context length")
         || lower.contains("context_length")
         || lower.contains("context_too_large")
@@ -14799,10 +15073,16 @@ fn classify_upstream_error_category(status: StatusCode, body: &str) -> Option<&'
     {
         return Some("context_too_large");
     }
-    if lower.contains("selected model is at capacity") || lower.contains("model is at capacity") {
+    if model_capacity {
         return Some("model_capacity");
     }
-    None
+    match status {
+        StatusCode::FORBIDDEN => Some("upstream_forbidden"),
+        StatusCode::REQUEST_TIMEOUT | StatusCode::GATEWAY_TIMEOUT => Some("upstream_timeout"),
+        StatusCode::BAD_GATEWAY => Some("upstream_bad_gateway"),
+        StatusCode::SERVICE_UNAVAILABLE => Some("upstream_unavailable"),
+        _ => None,
+    }
 }
 
 fn should_try_next_account(status: StatusCode, body: &str) -> bool {
@@ -16355,14 +16635,7 @@ async fn proxy_request_with_account_pool(
         request_image_generation_mode(collection.image_generation_mode, &request.headers);
     let routing_hint = build_request_routing_hint(request);
     let total = scoped_account_ids.len();
-    let configured_max_credentials = collection.max_retry_credentials as usize;
-    let max_credential_attempts = if configured_max_credentials == 0 {
-        total
-    } else {
-        configured_max_credentials.min(total)
-    }
-    .min(MAX_RETRY_CREDENTIALS_PER_REQUEST)
-    .max(1);
+    let max_credential_attempts = max_credential_attempts_for_collection(collection, total);
     let session_affinity_key = routing_hint
         .session_affinity_key
         .as_deref()
@@ -16393,10 +16666,17 @@ async fn proxy_request_with_account_pool(
             start,
             affinity_account_id.as_deref(),
         );
-        let strategy = if scoped_account_ids == collection.account_ids {
+        let strategy = if scoped_account_ids == collection.account_ids
+            || collection.routing_strategy == CodexLocalAccessRoutingStrategy::SingleAccount
+        {
             collection.routing_strategy
         } else {
             CodexLocalAccessRoutingStrategy::Auto
+        };
+        let preferred_account_id = if strategy == CodexLocalAccessRoutingStrategy::SingleAccount {
+            None
+        } else {
+            affinity_account_id.as_deref()
         };
         let strategy_account_ids = pin_account_to_front(
             apply_routing_strategy(
@@ -16405,7 +16685,7 @@ async fn proxy_request_with_account_pool(
                 &collection.custom_routing_rules,
                 start,
             ),
-            affinity_account_id.as_deref(),
+            preferred_account_id,
         );
         let mut attempted_in_round = false;
         let mut round_cooldown_wait: Option<Duration> = None;
@@ -17450,14 +17730,7 @@ async fn proxy_websocket_with_account_pool(
     );
     let routing_hint = build_request_routing_hint(request);
     let total = scoped_account_ids.len();
-    let configured_max_credentials = collection.max_retry_credentials as usize;
-    let max_credential_attempts = if configured_max_credentials == 0 {
-        total
-    } else {
-        configured_max_credentials.min(total)
-    }
-    .min(MAX_RETRY_CREDENTIALS_PER_REQUEST)
-    .max(1);
+    let max_credential_attempts = max_credential_attempts_for_collection(collection, total);
     let start = GATEWAY_ROUND_ROBIN_CURSOR.fetch_add(1, Ordering::Relaxed);
     let session_affinity_key = routing_hint
         .session_affinity_key
@@ -17475,10 +17748,17 @@ async fn proxy_websocket_with_account_pool(
         start,
         affinity_account_id.as_deref(),
     );
-    let strategy = if scoped_account_ids == collection.account_ids {
+    let strategy = if scoped_account_ids == collection.account_ids
+        || collection.routing_strategy == CodexLocalAccessRoutingStrategy::SingleAccount
+    {
         collection.routing_strategy
     } else {
         CodexLocalAccessRoutingStrategy::Auto
+    };
+    let preferred_account_id = if strategy == CodexLocalAccessRoutingStrategy::SingleAccount {
+        None
+    } else {
+        affinity_account_id.as_deref()
     };
     let strategy_account_ids = pin_account_to_front(
         apply_routing_strategy(
@@ -17487,7 +17767,7 @@ async fn proxy_websocket_with_account_pool(
             &collection.custom_routing_rules,
             start,
         ),
-        affinity_account_id.as_deref(),
+        preferred_account_id,
     );
 
     let mut attempts = 0usize;
@@ -18729,7 +19009,7 @@ mod tests {
     use super::{
         account_model_rule_blocks_model, account_requires_bound_oauth_local_gateway,
         account_requires_provider_gateway, account_upstream_base_url, align_codex_prompt_cache,
-        apply_codex_official_headers, apply_routing_strategy,
+        append_usage_event, apply_codex_official_headers, apply_routing_strategy,
         backup_current_profile_model_before_provider_gateway, bridge_websocket_streams,
         build_account_scoped_upstream_body, build_base_url_with_host,
         build_chat_completion_payload, build_chat_completion_stream_body,
@@ -18740,33 +19020,36 @@ mod tests {
         canonical_model_for_client_model, classify_upstream_error_category,
         cleanup_profile_takeover_without_backup, cleanup_provider_gateway_profile_model_overrides,
         collect_local_access_profile_takeover_dirs_from_store, compare_routing_candidates,
-        extract_usage_capture, inspect_local_access_profile_config,
-        is_codex_local_access_auth_text, is_codex_local_access_config_for_api_key,
-        is_image_generation_capability_error, is_local_access_eligible_account,
-        is_provider_gateway_eligible_account, is_responses_completion_event,
-        is_stream_incomplete_error_message, is_upstream_response_failed_error_message,
-        legacy_stream_error_category, local_access_chat_completions_url,
-        macos_proxy_url_from_scutil_map, merge_collection_and_account_excluded_models,
+        extract_usage_capture, insert_local_access_usage_event,
+        inspect_local_access_profile_config, is_codex_local_access_auth_text,
+        is_codex_local_access_config_for_api_key, is_image_generation_capability_error,
+        is_local_access_eligible_account, is_provider_gateway_eligible_account,
+        is_responses_completion_event, is_stream_incomplete_error_message,
+        is_upstream_response_failed_error_message, legacy_stream_error_category,
+        local_access_chat_completions_url, macos_proxy_url_from_scutil_map,
+        max_credential_attempts_for_collection, merge_collection_and_account_excluded_models,
         model_pricing, model_provider_direct_test_client_model,
         model_provider_test_uses_provider_gateway, normalize_account_model_rules,
-        normalize_custom_routing_rules, normalized_sidecar_error_category, parse_codex_retry_after,
+        normalize_custom_routing_rules, normalized_sidecar_error_category,
+        open_local_access_logs_db_once, parse_codex_retry_after,
         parse_responses_payload_from_upstream, parse_websocket_upstream_error,
         prepare_gateway_request, prepare_gateway_request_with_default_service_tier,
         prepare_sidecar_launch_config_in_dir, prepare_websocket_initial_request,
         profile_base_url_matches, provider_gateway_bound_oauth_account_id_for_account,
         provider_gateway_default_model_for_account,
         provider_gateway_image_generation_mode_for_account, provider_gateway_models_for_account,
-        read_http_request, recover_invalid_stats_file, remove_account_refs_from_collection,
-        remove_codex_local_access_config, request_image_generation_mode, resolve_plan_rank,
-        resolve_supported_model_alias, resolve_upstream_target,
-        restore_config_toml_from_takeover_backup, sanitize_collection_with_accounts,
-        scutil_proxy_map, should_retry_single_account_upstream_status,
-        should_treat_response_as_stream, should_try_next_account,
-        sidecar_api_key_account_scope_values, sidecar_auth_json_for_account,
-        sidecar_cached_account_usable_after_prepare_error, sidecar_codex_api_key_auth_id,
-        sidecar_config_fingerprint, sidecar_payload_default_service_tier, sidecar_stable_id,
-        supported_codex_model_ids, system_proxy_target_scheme, system_proxy_value_url,
-        validate_client_model_visible, visible_codex_model_ids_for_api_key, websocket_accept_value,
+        read_http_request, recompute_time_windows, recover_invalid_stats_file,
+        remove_account_refs_from_collection, remove_codex_local_access_config,
+        request_image_generation_mode, resolve_plan_rank, resolve_supported_model_alias,
+        resolve_upstream_target, restore_config_toml_from_takeover_backup,
+        sanitize_collection_with_accounts, scutil_proxy_map,
+        should_retry_single_account_upstream_status, should_treat_response_as_stream,
+        should_try_next_account, sidecar_api_key_account_scope_values,
+        sidecar_auth_json_for_account, sidecar_cached_account_usable_after_prepare_error,
+        sidecar_codex_api_key_auth_id, sidecar_config_fingerprint,
+        sidecar_payload_default_service_tier, sidecar_stable_id, supported_codex_model_ids,
+        system_proxy_target_scheme, system_proxy_value_url, validate_client_model_visible,
+        visible_codex_model_ids_for_api_key, websocket_accept_value,
         websocket_connect_error_from_http_response, windows_proxy_url_from_server,
         windows_reg_dword_enabled, windows_reg_query_map,
         write_local_access_profile_model_override, write_provider_gateway_model_catalog,
@@ -18776,8 +19059,9 @@ mod tests {
         SidecarUsageDetails, SidecarUsageEvent, UsageCapture, CODEX_AUTO_REVIEW_MODEL_ID,
         CODEX_LOCAL_ACCESS_TEST_DISABLE_IMAGE_GENERATION_HEADER, CODEX_PROFILE_AUTH_FILE,
         CODEX_PROFILE_CONFIG_FILE, CODEX_PROVIDER_MODEL_BACKUP_FILE,
-        CODEX_PROVIDER_MODEL_CATALOG_FILE, DEFAULT_MAX_RETRY_INTERVAL_MS,
-        DEFAULT_SESSION_AFFINITY_TTL_MS, MAX_HTTP_REQUEST_BYTES,
+        CODEX_PROVIDER_MODEL_CATALOG_FILE, DAY_WINDOW_MS, DEFAULT_MAX_RETRY_INTERVAL_MS,
+        DEFAULT_MODEL_PRICING_VERSION, DEFAULT_SESSION_AFFINITY_TTL_MS, MAX_HTTP_REQUEST_BYTES,
+        MONTH_WINDOW_MS, WEEK_WINDOW_MS,
     };
     use crate::models::codex::{CodexAccount, CodexApiProviderMode, CodexAppSpeed, CodexTokens};
     use crate::models::codex_local_access::{
@@ -18840,6 +19124,7 @@ mod tests {
             custom_routing_rules: Vec::new(),
             account_model_rules: Vec::new(),
             model_aliases: Vec::new(),
+            model_pricing_version: DEFAULT_MODEL_PRICING_VERSION,
             model_pricings: Vec::new(),
             excluded_models: Vec::new(),
             session_affinity: true,
@@ -19908,6 +20193,246 @@ wire_api = "responses"
     }
 
     #[test]
+    fn recomputes_usage_stats_windows_independently() {
+        let now = 1_700_000_000_000;
+        let mut stats = CodexLocalAccessStats {
+            updated_at: now,
+            ..CodexLocalAccessStats::default()
+        };
+        let daily_usage = UsageCapture {
+            input_tokens: 10,
+            output_tokens: 1,
+            total_tokens: 11,
+            cached_tokens: 0,
+            reasoning_tokens: 0,
+        };
+        let weekly_usage = UsageCapture {
+            input_tokens: 20,
+            output_tokens: 2,
+            total_tokens: 22,
+            cached_tokens: 0,
+            reasoning_tokens: 0,
+        };
+        let monthly_usage = UsageCapture {
+            input_tokens: 30,
+            output_tokens: 3,
+            total_tokens: 33,
+            cached_tokens: 0,
+            reasoning_tokens: 0,
+        };
+
+        append_usage_event(
+            &mut stats.events,
+            now - 1_000,
+            Some("req-daily"),
+            Some("acc-daily"),
+            Some("daily@example.com"),
+            Some("key-daily"),
+            Some("Daily Key"),
+            Some("gpt-5.4"),
+            Some(CodexLocalAccessGatewayMode::Sidecar),
+            CodexLocalAccessRequestKind::Text,
+            true,
+            Some(200),
+            None,
+            None,
+            100,
+            Some(&daily_usage),
+            None,
+            DEFAULT_MODEL_PRICING_VERSION,
+            0.0,
+        );
+        append_usage_event(
+            &mut stats.events,
+            now - DAY_WINDOW_MS - 1_000,
+            Some("req-weekly"),
+            Some("acc-weekly"),
+            Some("weekly@example.com"),
+            Some("key-weekly"),
+            Some("Weekly Key"),
+            Some("gpt-5.4"),
+            Some(CodexLocalAccessGatewayMode::Sidecar),
+            CodexLocalAccessRequestKind::Text,
+            true,
+            Some(200),
+            None,
+            None,
+            200,
+            Some(&weekly_usage),
+            None,
+            DEFAULT_MODEL_PRICING_VERSION,
+            0.0,
+        );
+        append_usage_event(
+            &mut stats.events,
+            now - WEEK_WINDOW_MS - 1_000,
+            Some("req-monthly"),
+            Some("acc-monthly"),
+            Some("monthly@example.com"),
+            Some("key-monthly"),
+            Some("Monthly Key"),
+            Some("gpt-5.4"),
+            Some(CodexLocalAccessGatewayMode::Sidecar),
+            CodexLocalAccessRequestKind::Text,
+            true,
+            Some(200),
+            None,
+            None,
+            300,
+            Some(&monthly_usage),
+            None,
+            DEFAULT_MODEL_PRICING_VERSION,
+            0.0,
+        );
+
+        recompute_time_windows(&mut stats, now);
+
+        assert_eq!(stats.daily.since, now - DAY_WINDOW_MS);
+        assert_eq!(stats.weekly.since, now - WEEK_WINDOW_MS);
+        assert_eq!(stats.monthly.since, now - MONTH_WINDOW_MS);
+        assert_eq!(stats.daily.totals.request_count, 1);
+        assert_eq!(stats.weekly.totals.request_count, 2);
+        assert_eq!(stats.monthly.totals.request_count, 3);
+        assert_eq!(stats.daily.totals.total_tokens, 11);
+        assert_eq!(stats.weekly.totals.total_tokens, 33);
+        assert_eq!(stats.monthly.totals.total_tokens, 66);
+    }
+
+    #[test]
+    fn request_log_db_preserves_api_key_label_and_full_error_message() {
+        let dir = make_temp_dir("codex-local-access-logs");
+        let db_path = dir.join("request_logs.sqlite");
+        let conn = open_local_access_logs_db_once(&db_path).expect("open logs db");
+        let long_error = format!(
+            "upstream failed: {} tail-marker",
+            "provider diagnostic ".repeat(256)
+        );
+        let mut events = Vec::new();
+        let event = append_usage_event(
+            &mut events,
+            1_700_000_000_000,
+            Some("req-long-error"),
+            Some("acc-1"),
+            Some("user@example.com"),
+            Some("key-1"),
+            Some("Production Key"),
+            Some("gpt-5.4"),
+            Some(CodexLocalAccessGatewayMode::Sidecar),
+            CodexLocalAccessRequestKind::Text,
+            false,
+            Some(502),
+            Some("upstream_bad_gateway"),
+            Some(&long_error),
+            42,
+            None,
+            Some(&model_pricing("gpt-5.4", 1.0, None, 2.0)),
+            7,
+            0.0,
+        );
+
+        insert_local_access_usage_event(&conn, &event).expect("insert request log");
+        let loaded = conn
+            .query_row(
+                "SELECT api_key_label, error_message, model_pricing_version FROM request_logs WHERE request_id = ?1",
+                ["req-long-error"],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, i64>(2)?,
+                    ))
+                },
+            )
+            .expect("read request log");
+
+        assert_eq!(loaded.0, "Production Key");
+        assert_eq!(loaded.1, long_error);
+        assert!(loaded.1.contains("tail-marker"));
+        assert_eq!(loaded.2, 7);
+
+        drop(conn);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn request_log_reprice_updates_cost_and_pricing_version() {
+        let dir = make_temp_dir("codex-local-access-reprice");
+        let db_path = dir.join("request_logs.sqlite");
+        let mut conn = open_local_access_logs_db_once(&db_path).expect("open logs db");
+        let mut events = Vec::new();
+        let usage = UsageCapture {
+            input_tokens: 1_000_000,
+            output_tokens: 500_000,
+            total_tokens: 1_500_000,
+            cached_tokens: 200_000,
+            reasoning_tokens: 0,
+        };
+        let event = append_usage_event(
+            &mut events,
+            1_700_000_000_000,
+            Some("req-reprice"),
+            Some("acc-1"),
+            Some("user@example.com"),
+            Some("key-1"),
+            Some("Production Key"),
+            Some("custom-model"),
+            Some(CodexLocalAccessGatewayMode::Sidecar),
+            CodexLocalAccessRequestKind::Text,
+            true,
+            Some(200),
+            None,
+            None,
+            42,
+            Some(&usage),
+            Some(&model_pricing("custom-model", 1.0, Some(0.5), 2.0)),
+            2,
+            1.0,
+        );
+        insert_local_access_usage_event(&conn, &event).expect("insert request log");
+
+        let mut collection = test_local_access_collection(vec!["acc-1".to_string()]);
+        collection.model_pricing_version = 8;
+        collection.model_pricings = vec![model_pricing("custom-model", 3.0, Some(0.25), 9.0)];
+        let updated = super::reprice_request_logs_for_collection(&mut conn, &collection)
+            .expect("reprice logs");
+        assert_eq!(updated, 1);
+
+        let loaded = conn
+            .query_row(
+                r#"
+                SELECT
+                    estimated_cost_usd,
+                    model_pricing_version,
+                    input_usd_per_million,
+                    output_usd_per_million,
+                    cached_input_usd_per_million
+                FROM request_logs
+                WHERE request_id = ?1
+                "#,
+                ["req-reprice"],
+                |row| {
+                    Ok((
+                        row.get::<_, f64>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, f64>(2)?,
+                        row.get::<_, f64>(3)?,
+                        row.get::<_, Option<f64>>(4)?,
+                    ))
+                },
+            )
+            .expect("read repriced request log");
+
+        assert!((loaded.0 - 6.95).abs() < 0.000001);
+        assert_eq!(loaded.1, 8);
+        assert_eq!(loaded.2, 3.0);
+        assert_eq!(loaded.3, 9.0);
+        assert_eq!(loaded.4, Some(0.25));
+
+        drop(conn);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
     fn removes_only_codex_local_access_provider_config() {
         let input = r#"model_provider = "codex_local_access"
 model_context_window = 1000000
@@ -20375,6 +20900,33 @@ data: {"type":"response.completed","response":{"id":"resp_123","usage":{"input_t
     }
 
     #[test]
+    fn classifies_upstream_http_status_fallbacks() {
+        assert_eq!(
+            classify_upstream_error_category(
+                StatusCode::FORBIDDEN,
+                r#"{"error":{"type":"insufficient_quota"}}"#,
+            ),
+            Some("usage_limit_reached")
+        );
+        assert_eq!(
+            classify_upstream_error_category(StatusCode::FORBIDDEN, r#"{"error":"forbidden"}"#),
+            Some("upstream_forbidden")
+        );
+        assert_eq!(
+            classify_upstream_error_category(StatusCode::BAD_GATEWAY, "bad gateway"),
+            Some("upstream_bad_gateway")
+        );
+        assert_eq!(
+            classify_upstream_error_category(StatusCode::GATEWAY_TIMEOUT, "timeout"),
+            Some("upstream_timeout")
+        );
+        assert_eq!(
+            classify_upstream_error_category(StatusCode::SERVICE_UNAVAILABLE, "unavailable"),
+            Some("upstream_unavailable")
+        );
+    }
+
+    #[test]
     fn classifies_stream_incomplete_errors_separately() {
         let decoding_error = "读取上游响应失败: error decoding response body";
         let disconnected_error = "stream error: stream disconnected before completion: stream closed before response.completed/response.done";
@@ -20420,6 +20972,30 @@ data: {"type":"response.completed","response":{"id":"resp_123","usage":{"input_t
         assert_eq!(
             normalized_sidecar_error_category(&event).as_deref(),
             Some("upstream_response_failed")
+        );
+    }
+
+    #[test]
+    fn sidecar_status_overrides_generic_request_failed() {
+        let event = SidecarUsageEvent {
+            request_id: "req-1".to_string(),
+            model: "gpt-5.4".to_string(),
+            account_id: "account-1".to_string(),
+            account_email: "user@example.com".to_string(),
+            api_key_id: "key-1".to_string(),
+            api_key_label: "Default".to_string(),
+            request_kind: "text".to_string(),
+            success: false,
+            status: Some(504),
+            error_category: Some("request_failed".to_string()),
+            error_message: Some("upstream timeout".to_string()),
+            latency_ms: 30000,
+            usage: SidecarUsageDetails::default(),
+        };
+
+        assert_eq!(
+            normalized_sidecar_error_category(&event).as_deref(),
+            Some("upstream_timeout")
         );
     }
 
@@ -20630,6 +21206,41 @@ data: {"type":"response.completed","response":{"id":"resp_123","usage":{"input_t
                 "acc-light",
             ]
         );
+    }
+
+    #[test]
+    fn single_account_routing_keeps_first_account_without_rotation() {
+        let account_ids = vec![
+            "acc-first".to_string(),
+            "acc-second".to_string(),
+            "acc-third".to_string(),
+        ];
+
+        for start in 0..6 {
+            let ordered = apply_routing_strategy(
+                &account_ids,
+                CodexLocalAccessRoutingStrategy::SingleAccount,
+                &[],
+                start,
+            );
+            assert_eq!(ordered, account_ids);
+        }
+    }
+
+    #[test]
+    fn single_account_routing_limits_credential_attempts_to_one() {
+        let mut collection = test_local_access_collection(vec![
+            "acc-first".to_string(),
+            "acc-second".to_string(),
+            "acc-third".to_string(),
+        ]);
+        collection.routing_strategy = CodexLocalAccessRoutingStrategy::SingleAccount;
+        collection.max_retry_credentials = 0;
+
+        assert_eq!(max_credential_attempts_for_collection(&collection, 3), 1);
+
+        collection.routing_strategy = CodexLocalAccessRoutingStrategy::Auto;
+        assert_eq!(max_credential_attempts_for_collection(&collection, 3), 3);
     }
 
     #[test]

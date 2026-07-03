@@ -312,10 +312,94 @@ pub async fn delete_codex_account(account_id: String) -> Result<(), String> {
     platform_adapter::call_codex("accounts.delete", json!({ "accountId": account_id }))
 }
 
+#[tauri::command]
+pub async fn start_codex_batch_delete(
+    account_ids: Vec<String>,
+) -> Result<serde_json::Value, String> {
+    platform_adapter::call_codex(
+        "accounts.batchDelete.start",
+        json!({ "accountIds": account_ids }),
+    )
+}
+
+#[tauri::command]
+pub async fn get_codex_batch_delete(job_id: String) -> Result<serde_json::Value, String> {
+    platform_adapter::call_codex("accounts.batchDelete.get", json!({ "jobId": job_id }))
+}
+
+#[tauri::command]
+pub async fn resume_codex_batch_delete(job_id: String) -> Result<serde_json::Value, String> {
+    platform_adapter::call_codex("accounts.batchDelete.resume", json!({ "jobId": job_id }))
+}
+
+#[tauri::command]
+pub async fn pause_codex_batch_delete(job_id: String) -> Result<serde_json::Value, String> {
+    platform_adapter::call_codex("accounts.batchDelete.pause", json!({ "jobId": job_id }))
+}
+
+#[tauri::command]
+pub async fn retry_failed_codex_batch_delete(job_id: String) -> Result<serde_json::Value, String> {
+    platform_adapter::call_codex(
+        "accounts.batchDelete.retryFailed",
+        json!({ "jobId": job_id }),
+    )
+}
+
+#[tauri::command]
+pub async fn clear_codex_batch_delete(job_id: String) -> Result<(), String> {
+    platform_adapter::call_codex("accounts.batchDelete.clear", json!({ "jobId": job_id }))
+}
+
 /// 批量删除 Codex 账号
 #[tauri::command]
 pub async fn delete_codex_accounts(account_ids: Vec<String>) -> Result<(), String> {
-    platform_adapter::call_codex("accounts.deleteMany", json!({ "accountIds": account_ids }))
+    let status = start_codex_batch_delete(account_ids).await?;
+    let job_id = status
+        .get("jobId")
+        .and_then(|value| value.as_str())
+        .unwrap_or_default()
+        .to_string();
+    if job_id.trim().is_empty() {
+        return Ok(());
+    }
+    for _ in 0..600 {
+        let status: serde_json::Value =
+            platform_adapter::call_codex("accounts.batchDelete.get", json!({ "jobId": job_id }))?;
+        let state = status
+            .get("status")
+            .and_then(|value| value.as_str())
+            .unwrap_or_default();
+        if state == "completed" {
+            return Ok(());
+        }
+        if state == "paused" {
+            return Err("批量删除账号已暂停".to_string());
+        }
+        if state == "failed" {
+            let errors = status
+                .get("errors")
+                .and_then(|value| value.as_array())
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(|item| {
+                            let account_id =
+                                item.get("accountId").and_then(|value| value.as_str())?;
+                            let error = item.get("error").and_then(|value| value.as_str())?;
+                            Some(format!("{}: {}", account_id, error))
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            return Err(if errors.is_empty() {
+                "批量删除账号失败".to_string()
+            } else {
+                errors.join("; ")
+            });
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+    Err("批量删除账号超时".to_string())
 }
 
 /// 从本地 auth.json 导入账号
@@ -691,11 +775,20 @@ pub async fn update_codex_account_tags(
 #[tauri::command]
 pub async fn update_codex_account_note(
     account_id: String,
-    note: String,
+    note: Option<String>,
+    two_factor_secret: Option<String>,
+    account_password: Option<String>,
+    phone_number: Option<String>,
 ) -> Result<CodexAccount, String> {
     platform_adapter::call_codex(
         "accounts.updateNote",
-        json!({ "accountId": account_id, "note": note }),
+        json!({
+            "accountId": account_id,
+            "note": note,
+            "twoFactorSecret": two_factor_secret,
+            "accountPassword": account_password,
+            "phoneNumber": phone_number,
+        }),
     )
 }
 
@@ -1168,6 +1261,11 @@ pub async fn codex_local_access_update_model_pricings(
         "localAccess.updateModelPricings",
         json!({ "modelPricings": model_pricings }),
     )
+}
+
+#[tauri::command]
+pub async fn codex_local_access_reprice_request_logs() -> Result<CodexLocalAccessState, String> {
+    call_codex_local_access_fast("localAccess.repriceRequestLogs", json!({}))
 }
 
 #[tauri::command]

@@ -1,9 +1,9 @@
 {
   "id": "cursor",
   "platformId": "cursor",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "apiVersion": 1,
-  "minCoreVersion": "1.0.0",
+  "minCoreVersion": "1.0.2",
   "displayName": "Cursor",
   "entry": "runtime/index.json",
   "packageMode": "hotUpdate",
@@ -71,6 +71,25 @@
     "instances"
   ],
   "changelog": [
+    {
+      "version": "1.0.2",
+      "date": "2026-07-03",
+      "notes": [
+        "Improved Cursor account refresh and OAuth network error details to expose the underlying transport failure chain."
+      ],
+      "locales": {
+        "zh-CN": {
+          "notes": [
+            "增强 Cursor 账号刷新和 OAuth 网络错误提示，保留底层传输失败链路，方便定位连接、代理或超时问题。"
+          ]
+        },
+        "zh-TW": {
+          "notes": [
+            "增強 Cursor 帳號刷新與 OAuth 網路錯誤提示，保留底層傳輸失敗鏈路，方便定位連線、代理或逾時問題。"
+          ]
+        }
+      }
+    },
     {
       "version": "1.0.1",
       "date": "2026-07-02",

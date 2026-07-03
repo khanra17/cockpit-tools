@@ -225,7 +225,9 @@
     "deleteTagWarning": "確定要從所有帳號刪除此標籤嗎？",
     "expand": "展開",
     "processing": "處理中...",
-    "selectAll": "全選"
+    "selectAll": "全選",
+    "pause": "暫停",
+    "resume": "繼續"
   },
   "nav": {
     "overview": "Antigravity IDE",
@@ -1051,7 +1053,9 @@
         "unresolvedRefs": "{{count}} 個帳號綁定未匹配，已略過",
         "disabledTasks": "{{count}} 個任務因缺少帳號已自動停用",
         "restartRequired": "網路服務設定已還原，部分變更需重新啟動後生效",
-        "partialAccountFailure": "部分帳號匯入失敗：{{error}}"
+        "partialAccountFailure": "部分帳號匯入失敗：{{error}}",
+        "codexSessionsImported": "Codex 會話已匯入 {{imported}} 筆，略過 {{skipped}} 筆",
+        "codexSessionsMissingTargets": "{{count}} 個 Codex 來源實例在本機沒有對應目標實例"
       },
       "errors": {
         "selectionRequired": "請至少選擇一項資料類型",
@@ -1987,6 +1991,7 @@
       "refreshStatsSuccess": "API 服務統計已刷新",
       "routingStrategy": {
         "auto": "自動（推薦）",
+        "singleAccount": "固定首個帳號",
         "quotaHighFirst": "優先高配額",
         "quotaLowFirst": "優先低配額",
         "planHighFirst": "優先高訂閱",
@@ -2674,7 +2679,12 @@
         "instanceScopeAll": "全部實例",
         "instanceScopeAllDesc": "修復所有 Codex 實例，適合多開實例一起復原。",
         "progressTitle": "修復進度",
-        "start": "開始修復"
+        "start": "開始修復",
+        "previewing": "正在預覽...",
+        "previewAgain": "重新預覽",
+        "preview": "預覽變更",
+        "previewFailedWithError": "預覽會話修復失敗：{{error}}",
+        "confirmRepair": "確認修復"
       }
     },
     "modelProviders": {
@@ -3001,8 +3011,29 @@
     "accountNote": {
       "title": "帳號備註",
       "label": "帳號備註",
-      "desc": "為 {{account}} 填寫單獨顯示的帳號備註。",
-      "placeholder": "例如信箱、密碼、輔助信箱或其他交付備註",
+      "desc": "為 {{account}} 填寫 2FA、密碼、手機號和其他備註。",
+      "twoFactorSecretLabel": "2FA 秘鑰",
+      "twoFactorSecretShort": "2FA",
+      "twoFactorSecretPlaceholder": "Base32 secret 或 otpauth:// 連結",
+      "twoFactorSecretInvalid": "2FA 秘鑰格式無效，請輸入 Base32 secret 或 otpauth:// 連結",
+      "currentOtp": "目前驗證碼",
+      "otpShort": "驗證碼",
+      "otpRemaining": "{{seconds}}秒",
+      "passwordLabel": "帳號密碼",
+      "passwordShort": "密碼",
+      "passwordPlaceholder": "登入密碼或臨時密碼",
+      "phoneNumberLabel": "手機號",
+      "phoneShort": "手機",
+      "phoneNumberPlaceholder": "綁定手機號",
+      "otherNoteLabel": "其他備註",
+      "otherNoteShort": "備註",
+      "placeholder": "其他交付備註、輔助信箱或帳號說明",
+      "exportSensitiveNotice": "匯出內容包含 2FA 秘鑰、密碼或手機號，請只儲存到可信位置。",
+      "exportSensitiveIncluded": "包含敏感備註",
+      "exportSensitiveExcluded": "已排除敏感備註",
+      "exportSensitiveToggleHint": "控制匯出 JSON 是否包含 2FA 秘鑰、密碼和手機號。",
+      "show": "顯示",
+      "hide": "隱藏",
       "emptyTitle": "填寫帳號備註",
       "short": "帳號備註",
       "addShort": "加備註",
@@ -3097,7 +3128,11 @@
         "pricingUnset": "未設定",
         "pricingReset": "重設",
         "pricingSaved": "價格設定已儲存",
-        "pricingInvalid": "價格必須是大於或等於 0 的數字"
+        "pricingInvalid": "價格必須是大於或等於 0 的數字",
+        "pricingVersion": "目前價格版本 v{{version}}",
+        "pricingRepriceHistory": "重算歷史估值",
+        "pricingRepriceHint": "依目前價格版本刷新請求日誌與統計中的估算金額。",
+        "pricingRepriceSuccess": "歷史請求估值已依目前價格重算"
       },
       "keys": {
         "policyTitle": "模型策略",
@@ -3303,6 +3338,15 @@
       "debugReasonCode": "原因代碼",
       "debugRemainingReferrals": "剩餘邀請數",
       "debugAccountStructure": "帳號結構"
+    },
+    "batchDelete": {
+      "title": "Codex 批量刪除",
+      "running": "刪除中",
+      "paused": "已暫停",
+      "failed": "部分失敗",
+      "completed": "刪除完成",
+      "preparing": "正在準備刪除任務...",
+      "retryFailed": "重試失敗項"
     }
   },
   "githubCopilot": {

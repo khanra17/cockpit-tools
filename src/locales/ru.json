@@ -225,7 +225,9 @@
     "deleteTagWarning": "Вы уверены, что хотите удалить этот тег со всех аккаунтов?",
     "expand": "Развернуть",
     "processing": "Обработка...",
-    "selectAll": "Выбрать всё"
+    "selectAll": "Выбрать всё",
+    "pause": "Пауза",
+    "resume": "Продолжить"
   },
   "nav": {
     "overview": "Antigravity IDE​",
@@ -1051,7 +1053,9 @@
         "unresolvedRefs": "Не удалось сопоставить {{count}} привязок аккаунтов, они были пропущены",
         "disabledTasks": "{{count}} задач отключено, потому что не удалось сопоставить аккаунт",
         "restartRequired": "Настройки сетевого сервиса восстановлены. Некоторые изменения вступят в силу после перезапуска",
-        "partialAccountFailure": "Не удалось импортировать часть аккаунтов: {{error}}"
+        "partialAccountFailure": "Не удалось импортировать часть аккаунтов: {{error}}",
+        "codexSessionsImported": "Импортировано сеансов Codex: {{imported}}, пропущено: {{skipped}}",
+        "codexSessionsMissingTargets": "Для {{count}} исходных экземпляров Codex нет локальной цели"
       },
       "errors": {
         "selectionRequired": "Выберите хотя бы один тип данных",
@@ -1987,6 +1991,7 @@
       "refreshStatsSuccess": "Статистика API-сервиса обновлена",
       "routingStrategy": {
         "auto": "Авто (рекомендуется)",
+        "singleAccount": "Первый аккаунт",
         "quotaHighFirst": "Сначала высокая квота",
         "quotaLowFirst": "Сначала низкая квота",
         "planHighFirst": "Сначала высокий тариф",
@@ -2557,7 +2562,12 @@
         "instanceScopeAll": "Все экземпляры",
         "instanceScopeAllDesc": "Исправляет все экземпляры Codex при общей восстановлении.",
         "progressTitle": "Ход восстановления",
-        "start": "Восстановить"
+        "start": "Восстановить",
+        "previewing": "Предпросмотр...",
+        "previewAgain": "Повторить просмотр",
+        "preview": "Просмотр изменений",
+        "previewFailedWithError": "Не удалось выполнить предпросмотр восстановления сеанса: {{error}}",
+        "confirmRepair": "Подтвердить"
       }
     },
     "api": {
@@ -3001,8 +3011,29 @@
     "accountNote": {
       "title": "Заметка аккаунта",
       "label": "Заметка аккаунта",
-      "desc": "Добавьте отдельную заметку для {{account}}.",
-      "placeholder": "Почта, пароль, резервная почта или заметки к выдаче",
+      "desc": "Добавьте 2FA, пароль, телефон и другие заметки для {{account}}.",
+      "twoFactorSecretLabel": "Секрет 2FA",
+      "twoFactorSecretShort": "2FA",
+      "twoFactorSecretPlaceholder": "Секрет Base32 или URI otpauth://",
+      "twoFactorSecretInvalid": "Недействительный секрет 2FA. Введите секрет Base32 или URI otpauth://.",
+      "currentOtp": "Текущий код",
+      "otpShort": "Код",
+      "otpRemaining": "{{seconds}} с",
+      "passwordLabel": "Пароль",
+      "passwordShort": "Пароль",
+      "passwordPlaceholder": "Пароль входа или временный пароль",
+      "phoneNumberLabel": "Телефон",
+      "phoneShort": "Телефон",
+      "phoneNumberPlaceholder": "Привязанный номер телефона",
+      "otherNoteLabel": "Другие заметки",
+      "otherNoteShort": "Заметка",
+      "placeholder": "Заметки к выдаче, резервная почта или данные аккаунта",
+      "exportSensitiveNotice": "Экспорт содержит секреты 2FA, пароли или номера телефонов. Сохраняйте его только в надежном месте.",
+      "exportSensitiveIncluded": "Включить чувствительные заметки",
+      "exportSensitiveExcluded": "Исключить чувствительные заметки",
+      "exportSensitiveToggleHint": "Определяет, включает ли экспорт JSON секреты 2FA, пароли и номера телефонов.",
+      "show": "Показать",
+      "hide": "Скрыть",
       "emptyTitle": "Добавить заметку аккаунта",
       "short": "Заметка",
       "addShort": "Добавить",
@@ -3097,7 +3128,11 @@
         "pricingUnset": "Не задано",
         "pricingReset": "Сброс",
         "pricingSaved": "Цены сохранены",
-        "pricingInvalid": "Цены должны быть числами больше или равны 0"
+        "pricingInvalid": "Цены должны быть числами больше или равны 0",
+        "pricingVersion": "Текущая версия цен v{{version}}",
+        "pricingRepriceHistory": "Пересчитать историю",
+        "pricingRepriceHint": "Обновляет оценки в журналах запросов и статистике по текущей версии цен.",
+        "pricingRepriceSuccess": "Исторические оценки запросов пересчитаны по текущим ценам"
       },
       "keys": {
         "policyTitle": "Политика моделей",
@@ -3303,6 +3338,15 @@
       "debugReasonCode": "Код причины",
       "debugRemainingReferrals": "Осталось приглашений",
       "debugAccountStructure": "Структура аккаунта"
+    },
+    "batchDelete": {
+      "title": "Пакетное удаление Codex",
+      "running": "Удаление",
+      "paused": "Пауза",
+      "failed": "Частичный сбой",
+      "completed": "Удаление завершено",
+      "preparing": "Подготовка удаления...",
+      "retryFailed": "Повторить сбои"
     }
   },
   "githubCopilot": {

@@ -225,7 +225,9 @@
     "deleteTagWarning": "确定要从所有账号中移除标签 ",
     "expand": "展开",
     "processing": "处理中...",
-    "selectAll": "全选"
+    "selectAll": "全选",
+    "pause": "暂停",
+    "resume": "继续"
   },
   "floatingCard": {
     "selectPlatform": "切换平台",
@@ -949,7 +951,9 @@
         "unresolvedRefs": "{{count}} 个账号绑定未匹配，已跳过",
         "disabledTasks": "{{count}} 个任务因缺少账号已自动禁用",
         "restartRequired": "网络服务配置已恢复，部分变更需重启应用后生效",
-        "partialAccountFailure": "部分账号导入失败：{{error}}"
+        "partialAccountFailure": "部分账号导入失败：{{error}}",
+        "codexSessionsImported": "Codex 会话已导入 {{imported}} 条，跳过 {{skipped}} 条",
+        "codexSessionsMissingTargets": "{{count}} 个 Codex 源实例在本机没有对应目标实例"
       },
       "errors": {
         "selectionRequired": "请至少选择一项数据类型",
@@ -2074,8 +2078,29 @@
     "accountNote": {
       "title": "账号备注",
       "label": "账号备注",
-      "desc": "给 {{account}} 填写单独展示的账号备注。",
-      "placeholder": "例如邮箱、密码、辅助邮箱或其他交付备注",
+      "desc": "给 {{account}} 填写 2FA、密码、手机号和其他备注。",
+      "twoFactorSecretLabel": "2FA 秘钥",
+      "twoFactorSecretShort": "2FA",
+      "twoFactorSecretPlaceholder": "Base32 secret 或 otpauth:// 链接",
+      "twoFactorSecretInvalid": "2FA 秘钥格式无效，请输入 Base32 secret 或 otpauth:// 链接",
+      "currentOtp": "当前验证码",
+      "otpShort": "验证码",
+      "otpRemaining": "{{seconds}}秒",
+      "passwordLabel": "账号密码",
+      "passwordShort": "密码",
+      "passwordPlaceholder": "登录密码或临时密码",
+      "phoneNumberLabel": "手机号",
+      "phoneShort": "手机",
+      "phoneNumberPlaceholder": "绑定手机号",
+      "otherNoteLabel": "其他备注",
+      "otherNoteShort": "备注",
+      "placeholder": "其他交付备注、辅助邮箱或账号说明",
+      "exportSensitiveNotice": "导出内容包含 2FA 秘钥、密码或手机号，请只保存到可信位置。",
+      "exportSensitiveIncluded": "包含敏感备注",
+      "exportSensitiveExcluded": "已排除敏感备注",
+      "exportSensitiveToggleHint": "控制导出 JSON 是否包含 2FA 秘钥、密码和手机号。",
+      "show": "显示",
+      "hide": "隐藏",
       "emptyTitle": "填写账号备注",
       "short": "账号备注",
       "addShort": "加备注",
@@ -2255,6 +2280,7 @@
       "memberTitle": "集合成员",
       "routingStrategy": {
         "auto": "自动（推荐）",
+        "singleAccount": "固定首个账号",
         "quotaHighFirst": "优先高配额",
         "quotaLowFirst": "优先低配额",
         "planHighFirst": "优先高订阅",
@@ -3267,7 +3293,12 @@
         "instanceScopeAll": "全部实例",
         "instanceScopeAllDesc": "修复所有 Codex 实例，适合多开实例一起恢复。",
         "progressTitle": "修复进度",
-        "start": "开始修复"
+        "start": "开始修复",
+        "previewing": "正在预览...",
+        "previewAgain": "重新预览",
+        "preview": "预览变更",
+        "previewFailedWithError": "预览会话修复失败：{{error}}",
+        "confirmRepair": "确认修复"
       }
     },
     "groups": {
@@ -3358,7 +3389,11 @@
         "pricingUnset": "未设置",
         "pricingReset": "重置",
         "pricingSaved": "价格设置已保存",
-        "pricingInvalid": "价格必须是大于或等于 0 的数字"
+        "pricingInvalid": "价格必须是大于或等于 0 的数字",
+        "pricingVersion": "当前价格版本 v{{version}}",
+        "pricingRepriceHistory": "重算历史估值",
+        "pricingRepriceHint": "按当前价格版本刷新请求日志和统计里的估算金额。",
+        "pricingRepriceSuccess": "历史请求估值已按当前价格重算"
       },
       "keys": {
         "policyTitle": "模型策略",
@@ -3501,6 +3536,15 @@
       "legacyBefore4eb75d96": "4eb75d96 前逻辑",
       "legacy4eb75d96": "4eb75d96 逻辑",
       "current": "当前逻辑"
+    },
+    "batchDelete": {
+      "title": "Codex 批量删除",
+      "running": "删除中",
+      "paused": "已暂停",
+      "failed": "部分失败",
+      "completed": "删除完成",
+      "preparing": "正在准备删除任务...",
+      "retryFailed": "重试失败项"
     }
   },
   "codebuddy": {

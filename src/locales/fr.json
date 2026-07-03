@@ -225,7 +225,9 @@
     "deleteTagWarning": "Voulez-vous vraiment supprimer ce tag de tous les comptes ?",
     "expand": "Développer",
     "processing": "Traitement en cours...",
-    "selectAll": "Tout sélectionner"
+    "selectAll": "Tout sélectionner",
+    "pause": "Pause",
+    "resume": "Reprendre"
   },
   "nav": {
     "overview": "Antigravity IDE​",
@@ -1051,7 +1053,9 @@
         "unresolvedRefs": "{{count}} liaisons de comptes n'ont pas pu être associées et ont été ignorées",
         "disabledTasks": "{{count}} tâches ont été désactivées car aucun compte n'a pu être associé",
         "restartRequired": "Les paramètres du service réseau ont été restaurés. Certains changements prendront effet après redémarrage",
-        "partialAccountFailure": "L'import de certains comptes a échoué : {{error}}"
+        "partialAccountFailure": "L'import de certains comptes a échoué : {{error}}",
+        "codexSessionsImported": "{{imported}} sessions Codex importées, {{skipped}} ignorées",
+        "codexSessionsMissingTargets": "{{count}} instances source Codex sans cible locale"
       },
       "errors": {
         "selectionRequired": "Sélectionnez au moins un type de données",
@@ -1987,6 +1991,7 @@
       "refreshStatsSuccess": "Les statistiques du service API ont été actualisées",
       "routingStrategy": {
         "auto": "Auto (recommandé)",
+        "singleAccount": "Premier compte fixe",
         "quotaHighFirst": "Quota élevé d'abord",
         "quotaLowFirst": "Quota faible d'abord",
         "planHighFirst": "Forfait élevé d'abord",
@@ -2557,7 +2562,12 @@
         "instanceScopeAll": "Toutes les instances",
         "instanceScopeAllDesc": "Répare toutes les instances Codex lors d’une restauration groupée.",
         "progressTitle": "Progression",
-        "start": "Démarrer"
+        "start": "Démarrer",
+        "previewing": "Aperçu...",
+        "previewAgain": "Revoir",
+        "preview": "Aperçu des changements",
+        "previewFailedWithError": "Échec de l’aperçu de la réparation de session : {{error}}",
+        "confirmRepair": "Confirmer"
       }
     },
     "api": {
@@ -3001,8 +3011,29 @@
     "accountNote": {
       "title": "Note de compte",
       "label": "Note de compte",
-      "desc": "Ajoutez une note de compte distincte pour {{account}}.",
-      "placeholder": "E-mail, mot de passe, e-mail de récupération ou notes de livraison",
+      "desc": "Ajoutez 2FA, mot de passe, téléphone et autres notes pour {{account}}.",
+      "twoFactorSecretLabel": "Secret 2FA",
+      "twoFactorSecretShort": "2FA",
+      "twoFactorSecretPlaceholder": "Secret Base32 ou URI otpauth://",
+      "twoFactorSecretInvalid": "Secret 2FA invalide. Saisissez un secret Base32 ou une URI otpauth://.",
+      "currentOtp": "Code actuel",
+      "otpShort": "Code OTP",
+      "otpRemaining": "{{seconds}} s",
+      "passwordLabel": "Mot de passe",
+      "passwordShort": "Mot de passe",
+      "passwordPlaceholder": "Mot de passe de connexion ou temporaire",
+      "phoneNumberLabel": "Téléphone",
+      "phoneShort": "Tél.",
+      "phoneNumberPlaceholder": "Numéro de téléphone lié",
+      "otherNoteLabel": "Autres notes",
+      "otherNoteShort": "Note",
+      "placeholder": "Notes de livraison, e-mail de récupération ou détails du compte",
+      "exportSensitiveNotice": "L’export contient des secrets 2FA, mots de passe ou numéros de téléphone. Enregistrez-le uniquement dans un emplacement fiable.",
+      "exportSensitiveIncluded": "Inclure les notes sensibles",
+      "exportSensitiveExcluded": "Exclure les notes sensibles",
+      "exportSensitiveToggleHint": "Contrôle si le JSON exporté contient les secrets 2FA, mots de passe et numéros de téléphone.",
+      "show": "Afficher",
+      "hide": "Masquer",
       "emptyTitle": "Ajouter une note de compte",
       "short": "Note​",
       "addShort": "Ajouter",
@@ -3097,7 +3128,11 @@
         "pricingUnset": "Non défini",
         "pricingReset": "Réinit.",
         "pricingSaved": "Tarifs enregistrés",
-        "pricingInvalid": "Les tarifs doivent être des nombres supérieurs ou égaux à 0"
+        "pricingInvalid": "Les tarifs doivent être des nombres supérieurs ou égaux à 0",
+        "pricingVersion": "Version tarifaire actuelle v{{version}}",
+        "pricingRepriceHistory": "Réévaluer l’historique",
+        "pricingRepriceHint": "Actualise les montants estimés des journaux et statistiques avec la version de prix actuelle.",
+        "pricingRepriceSuccess": "Les estimations historiques ont été recalculées avec les prix actuels"
       },
       "keys": {
         "policyTitle": "Politique de modèles",
@@ -3303,6 +3338,15 @@
       "debugReasonCode": "Code de raison",
       "debugRemainingReferrals": "Invitations restantes",
       "debugAccountStructure": "Structure du compte"
+    },
+    "batchDelete": {
+      "title": "Suppression groupée Codex",
+      "running": "Suppression",
+      "paused": "En pause",
+      "failed": "Échec partiel",
+      "completed": "Suppression terminée",
+      "preparing": "Préparation de la suppression...",
+      "retryFailed": "Réessayer les échecs"
     }
   },
   "githubCopilot": {

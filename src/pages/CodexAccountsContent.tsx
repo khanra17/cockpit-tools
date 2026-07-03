@@ -24,6 +24,7 @@ import {
   Copy,
   Check,
   Play,
+  Pause,
   RotateCw,
   CircleAlert,
   Info,
@@ -220,6 +221,7 @@ import {
 import {
   buildCodexExportContent,
   buildCodexExportFileNameBase,
+  codexExportHasSensitiveAccountNotes,
   type CodexExportFormat,
 } from "../utils/codexExportFormats";
 import {
@@ -237,6 +239,11 @@ import {
   type CodexLocalAccessRiskNoticeAction,
 } from "../utils/codexLocalAccessRiskNotice";
 import { formatCodexSessionVisibilityRepairMessage } from "../utils/codexSessionVisibility";
+import {
+  getMfaOtpToken,
+  getMfaTimeRemaining,
+  parseMfaCredentialInput,
+} from "../utils/mfaVault";
 import md5 from "blueimp-md5";
 
 const CODEX_TOKEN_SINGLE_EXAMPLE = `{
@@ -275,6 +282,8 @@ const CODEX_TOKEN_BATCH_EXAMPLE = `[
 ]`;
 const OPENAI_OFFICIAL_PRESET_ID = "openai_official";
 const OPENAI_OFFICIAL_BASE_URL = "https://api.openai.com/v1";
+const CODEX_BATCH_IMPORT_ACTIVE_SESSION_KEY =
+  "cockpit.codex.batchImport.activeSessionId";
 
 function normalizeCodexApiBaseUrl(rawValue?: string | null): string {
   return normalizeHttpBaseUrl(rawValue ?? "") ?? "";
@@ -341,6 +350,92 @@ type CodexApiKeyUsageState = {
   unavailable?: boolean;
   updatedAt?: number;
 };
+
+type CodexAccountNoteFormState = {
+  note: string;
+  twoFactorSecret: string;
+  accountPassword: string;
+  phoneNumber: string;
+};
+
+type CodexAccountNoteFieldErrors = {
+  twoFactorSecret?: string;
+};
+
+const EMPTY_CODEX_ACCOUNT_NOTE_FORM: CodexAccountNoteFormState = {
+  note: "",
+  twoFactorSecret: "",
+  accountPassword: "",
+  phoneNumber: "",
+};
+
+function buildCodexAccountNoteForm(
+  account?: CodexAccount | null,
+): CodexAccountNoteFormState {
+  return {
+    note: account?.account_note ?? "",
+    twoFactorSecret: account?.two_factor_secret ?? "",
+    accountPassword: account?.account_password ?? "",
+    phoneNumber: account?.phone_number ?? "",
+  };
+}
+
+function hasCodexAccountNoteDetails(account?: CodexAccount | null): boolean {
+  return Boolean(
+    account?.account_note?.trim() ||
+      account?.two_factor_secret?.trim() ||
+      account?.account_password?.trim() ||
+      account?.phone_number?.trim(),
+  );
+}
+
+function getCodexAccountNoteTitle(account: CodexAccount, fallback: string): string {
+  return (
+    account.account_note?.trim() ||
+    account.two_factor_secret?.trim() ||
+    account.account_password?.trim() ||
+    account.phone_number?.trim() ||
+    fallback
+  );
+}
+
+function hasSensitiveAccountNoteFieldInJson(jsonContent: string): boolean {
+  if (!jsonContent.trim()) return false;
+  const sensitiveKeys = new Set([
+    "two_factor_secret",
+    "twoFactorSecret",
+    "account_two_factor_secret",
+    "accountTwoFactorSecret",
+    "account_password",
+    "accountPassword",
+    "password",
+    "phone_number",
+    "phoneNumber",
+    "account_phone_number",
+    "accountPhoneNumber",
+  ]);
+  const visit = (value: unknown): boolean => {
+    if (Array.isArray(value)) return value.some(visit);
+    if (!value || typeof value !== "object") return false;
+    return Object.entries(value as Record<string, unknown>).some(
+      ([key, item]) => {
+        if (
+          sensitiveKeys.has(key) &&
+          typeof item === "string" &&
+          item.trim()
+        ) {
+          return true;
+        }
+        return visit(item);
+      },
+    );
+  };
+  try {
+    return visit(JSON.parse(jsonContent));
+  } catch {
+    return false;
+  }
+}
 
 const CODEX_API_KEY_USAGE_CACHE_KEY = "agtools.codex.apiKeyUsage.cache.v1";
 const CODEX_API_KEY_USAGE_AUTO_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
@@ -983,6 +1078,8 @@ export function CodexAccountsContent() {
   );
   const [exportFormat, setExportFormat] =
     useState<CodexExportFormat>("cockpit_tools");
+  const [includeSensitiveAccountNotesInExport, setIncludeSensitiveAccountNotesInExport] =
+    useState(true);
   const [exportFileNameBase, setExportFileNameBase] =
     useState("codex_accounts");
   const [formattedExportJsonCopied, setFormattedExportJsonCopied] =
@@ -1244,6 +1341,11 @@ export function CodexAccountsContent() {
   ] = useState(readLocalAccessGatewayGuideDismissed);
 
   const store = useCodexAccountStore();
+  const batchDeleteJob = store.batchDeleteJob;
+  const pauseBatchDeleteJob = store.pauseBatchDeleteJob;
+  const resumeBatchDeleteJob = store.resumeBatchDeleteJob;
+  const retryFailedBatchDeleteJob = store.retryFailedBatchDeleteJob;
+  const clearBatchDeleteJob = store.clearBatchDeleteJob;
   const codexInstanceStore = useCodexInstanceStore();
   const [cliLaunchingAccountId, setCliLaunchingAccountId] = useState<
     string | null
@@ -1257,7 +1359,20 @@ export function CodexAccountsContent() {
   const [editingAccountNoteId, setEditingAccountNoteId] = useState<
     string | null
   >(null);
-  const [editingAccountNoteValue, setEditingAccountNoteValue] = useState("");
+  const [editingAccountNoteForm, setEditingAccountNoteForm] =
+    useState<CodexAccountNoteFormState>(EMPTY_CODEX_ACCOUNT_NOTE_FORM);
+  const [accountNoteFieldErrors, setAccountNoteFieldErrors] =
+    useState<CodexAccountNoteFieldErrors>({});
+  const [accountNoteSecretVisible, setAccountNoteSecretVisible] =
+    useState(true);
+  const [accountNotePasswordVisible, setAccountNotePasswordVisible] =
+    useState(true);
+  const [accountNoteCopiedKey, setAccountNoteCopiedKey] = useState<
+    string | null
+  >(null);
+  const [mfaTimeRemaining, setMfaTimeRemaining] = useState(
+    getMfaTimeRemaining,
+  );
   const [savingAccountNote, setSavingAccountNote] = useState(false);
   const [savingAppSpeedId, setSavingAppSpeedId] = useState<string | null>(null);
   const [apiServiceAppSpeed, setApiServiceAppSpeed] =
@@ -1398,6 +1513,7 @@ export function CodexAccountsContent() {
     [],
   );
   const [batchImportCheckQuota, setBatchImportCheckQuota] = useState(false);
+  const [batchDeleteActionBusy, setBatchDeleteActionBusy] = useState(false);
   const batchImportUnlistenersRef = useRef<UnlistenFn[]>([]);
   const batchImportSessionIdRef = useRef<string | null>(null);
 
@@ -1414,8 +1530,28 @@ export function CodexAccountsContent() {
 
   useEffect(() => cleanupBatchImportListeners, [cleanupBatchImportListeners]);
 
+  const rememberActiveBatchImportSession = useCallback((sessionId: string) => {
+    try {
+      window.localStorage.setItem(
+        CODEX_BATCH_IMPORT_ACTIVE_SESSION_KEY,
+        sessionId,
+      );
+    } catch {
+      // ignore storage failures; the in-memory session still continues
+    }
+  }, []);
+
+  const forgetActiveBatchImportSession = useCallback(() => {
+    try {
+      window.localStorage.removeItem(CODEX_BATCH_IMPORT_ACTIVE_SESSION_KEY);
+    } catch {
+      // ignore storage cleanup failures
+    }
+  }, []);
+
   const resetBatchImportState = useCallback(() => {
     cleanupBatchImportListeners();
+    forgetActiveBatchImportSession();
     batchImportSessionIdRef.current = null;
     setBatchImportOpen(false);
     setBatchImportSessionId(null);
@@ -1428,7 +1564,160 @@ export function CodexAccountsContent() {
     setBatchImportResult(null);
     setBatchImportFilePaths([]);
     setBatchImportCheckQuota(false);
-  }, [cleanupBatchImportListeners]);
+  }, [cleanupBatchImportListeners, forgetActiveBatchImportSession]);
+
+  const applyBatchImportPreview = useCallback(
+    (preview: codexService.CodexBatchImportPreview) => {
+      setBatchImportPreview(preview);
+      setBatchImportCheckQuota(preview.checkQuota);
+      setBatchImportSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const item of preview.items) {
+          if (
+            item.defaultSelected &&
+            item.selectable &&
+            (item.status === "ready" || item.status === "existing")
+          ) {
+            next.add(item.itemId);
+          }
+        }
+        return Array.from(next);
+      });
+    },
+    [],
+  );
+
+  const progressFromBatchImportPreview = useCallback(
+    (
+      preview: codexService.CodexBatchImportPreview,
+    ): codexService.CodexBatchImportProgress => ({
+      sessionId: preview.sessionId,
+      phase: preview.status,
+      checkQuota: preview.checkQuota,
+      current: preview.items.length,
+      total: preview.total,
+      success: preview.items.filter((item) => item.status === "ready").length,
+      failed: preview.items.filter((item) => item.status === "invalid").length,
+      quotaFailed: preview.items.filter((item) => item.status === "quota_failed")
+        .length,
+      existing: preview.items.filter((item) => item.existing).length,
+      currentLabel: null,
+    }),
+    [],
+  );
+
+  const applyCompletedBatchImportPreview = useCallback(
+    (preview: codexService.CodexBatchImportPreview) => {
+      applyBatchImportPreview(preview);
+      setBatchImportProgress((current) =>
+        current
+          ? {
+              ...current,
+              phase: preview.status,
+              checkQuota: preview.checkQuota,
+              current: preview.items.length,
+              total: preview.total,
+            }
+          : progressFromBatchImportPreview(preview),
+      );
+      setBatchImportBusy(false);
+    },
+    [applyBatchImportPreview, progressFromBatchImportPreview],
+  );
+
+  const attachBatchImportListeners = useCallback(
+    async (sessionId: string) => {
+      cleanupBatchImportListeners();
+      const progressUnlisten =
+        await listen<codexService.CodexBatchImportProgress>(
+          "codex:batch-import-progress",
+          (event) => {
+            if (event.payload.sessionId !== sessionId) {
+              return;
+            }
+            setBatchImportProgress(event.payload);
+            setBatchImportCheckQuota(event.payload.checkQuota);
+            setBatchImportBusy(event.payload.phase !== "cancelled");
+          },
+        );
+      const completedUnlisten =
+        await listen<codexService.CodexBatchImportPreview>(
+          "codex:batch-import-completed",
+          (event) => {
+            if (event.payload.sessionId !== sessionId) {
+              return;
+            }
+            applyCompletedBatchImportPreview(event.payload);
+          },
+        );
+      const previewUnlisten =
+        await listen<codexService.CodexBatchImportPreview>(
+          "codex:batch-import-preview",
+          (event) => {
+            if (event.payload.sessionId !== sessionId) {
+              return;
+            }
+            applyBatchImportPreview(event.payload);
+          },
+        );
+      batchImportUnlistenersRef.current = [
+        progressUnlisten,
+        previewUnlisten,
+        completedUnlisten,
+      ];
+    },
+    [
+      applyBatchImportPreview,
+      applyCompletedBatchImportPreview,
+      cleanupBatchImportListeners,
+    ],
+  );
+
+  useEffect(() => {
+    let disposed = false;
+    const sessionId = (() => {
+      try {
+        return window.localStorage.getItem(CODEX_BATCH_IMPORT_ACTIVE_SESSION_KEY);
+      } catch {
+        return null;
+      }
+    })();
+    if (!sessionId) {
+      return () => {
+        disposed = true;
+      };
+    }
+
+    void (async () => {
+      try {
+        batchImportSessionIdRef.current = sessionId;
+        setBatchImportSessionId(sessionId);
+        await attachBatchImportListeners(sessionId);
+        const preview = await codexService.getCodexBatchImportPreview(sessionId);
+        if (disposed) return;
+        applyBatchImportPreview(preview);
+        setBatchImportProgress(progressFromBatchImportPreview(preview));
+        setBatchImportBusy(preview.status === "scanning");
+      } catch {
+        if (disposed) return;
+        forgetActiveBatchImportSession();
+        batchImportSessionIdRef.current = null;
+        setBatchImportSessionId(null);
+        setBatchImportProgress(null);
+        setBatchImportPreview(null);
+        setBatchImportBusy(false);
+      }
+    })();
+
+    return () => {
+      disposed = true;
+    };
+  }, [
+    applyBatchImportPreview,
+    attachBatchImportListeners,
+    forgetActiveBatchImportSession,
+    progressFromBatchImportPreview,
+  ]);
 
   const batchImportCounts = useMemo(() => {
     const items = batchImportPreview?.items ?? [];
@@ -1473,6 +1762,61 @@ export function CodexAccountsContent() {
     batchImportProgress?.checkQuota ??
     batchImportPreview?.checkQuota ??
     batchImportCheckQuota;
+  const hiddenBatchImportTaskVisible = Boolean(
+    batchImportSessionId && !batchImportOpen && !batchImportResult,
+  );
+  const hiddenBatchImportCurrent =
+    batchImportProgress?.current ?? batchImportPreview?.items.length ?? 0;
+  const hiddenBatchImportTotal =
+    batchImportProgress?.total ?? batchImportPreview?.total ?? 0;
+  const hiddenBatchImportPercent = hiddenBatchImportTotal
+    ? Math.min(
+        100,
+        Math.round((hiddenBatchImportCurrent / hiddenBatchImportTotal) * 100),
+      )
+    : 0;
+  const hiddenBatchImportStatusLabel = batchImportBusy
+    ? activeBatchImportCheckQuota
+      ? t("codex.batchImport.scanning", "扫描中")
+      : t("codex.batchImport.parsing", "解析中")
+    : batchImportPreview?.status === "cancelled"
+      ? t("codex.batchImport.cancelled", "已取消")
+      : batchImportPreview
+        ? activeBatchImportCheckQuota
+          ? t("codex.batchImport.scanDone", "扫描完成")
+          : t("codex.batchImport.parseDone", "解析完成")
+        : t("codex.batchImport.preparing", "正在准备导入任务...");
+  const batchDeleteTotal = batchDeleteJob?.total ?? 0;
+  const batchDeleteCompleted = batchDeleteJob?.completed ?? 0;
+  const batchDeletePercent = batchDeleteTotal
+    ? Math.min(
+        100,
+        Math.round((batchDeleteCompleted / batchDeleteTotal) * 100),
+      )
+    : 0;
+  const batchDeleteVisible = Boolean(batchDeleteJob && batchDeleteTotal > 0);
+  const batchDeleteStatusLabel =
+    batchDeleteJob?.status === "running"
+      ? t("codex.batchDelete.running", "删除中")
+      : batchDeleteJob?.status === "paused"
+        ? t("codex.batchDelete.paused", "已暂停")
+        : batchDeleteJob?.status === "failed"
+          ? t("codex.batchDelete.failed", "部分失败")
+          : batchDeleteJob?.status === "completed"
+            ? t("codex.batchDelete.completed", "删除完成")
+            : t("codex.batchDelete.preparing", "正在准备删除任务...");
+  const runBatchDeleteAction = useCallback(
+    async (action: () => Promise<void>) => {
+      if (batchDeleteActionBusy) return;
+      setBatchDeleteActionBusy(true);
+      try {
+        await action();
+      } finally {
+        setBatchDeleteActionBusy(false);
+      }
+    },
+    [batchDeleteActionBusy],
+  );
 
   const openCodexAddModal = useCallback(
     (tab: string, targetAccount?: CodexAccount | null) => {
@@ -1737,6 +2081,7 @@ export function CodexAccountsContent() {
     setFormattedExportPathCopied(false);
     setFormattedBatchSavingExportJson(false);
     setFormattedSavingExportDocumentId(null);
+    setIncludeSensitiveAccountNotesInExport(true);
     clearExportModalError();
   }, [clearExportModalError, exportJsonContent, showExportModal]);
 
@@ -1754,6 +2099,9 @@ export function CodexAccountsContent() {
   }, [clearExportModalError, exportFormat, showExportModal]);
 
   const formattedExportContent = useMemo(() => {
+    const exportOptions = {
+      includeSensitiveAccountNotes: includeSensitiveAccountNotesInExport,
+    };
     if (!exportJsonContent) {
       return {
         type: "single" as const,
@@ -1769,6 +2117,7 @@ export function CodexAccountsContent() {
         exportJsonContent,
         exportFormat,
         exportFileNameBase,
+        exportOptions,
       );
     } catch (error) {
       console.error("[CodexExport] transform failed:", error);
@@ -1776,9 +2125,15 @@ export function CodexAccountsContent() {
         exportJsonContent,
         "cockpit_tools",
         exportFileNameBase,
+        exportOptions,
       );
     }
-  }, [exportFileNameBase, exportFormat, exportJsonContent]);
+  }, [
+    exportFileNameBase,
+    exportFormat,
+    exportJsonContent,
+    includeSensitiveAccountNotesInExport,
+  ]);
 
   const formattedExportJsonContent = useMemo(() => {
     return formattedExportContent.type === "single"
@@ -1792,6 +2147,34 @@ export function CodexAccountsContent() {
     }
     return formattedExportContent.documents;
   }, [formattedExportContent]);
+
+  const formattedExportIncludesSensitiveNotes = useMemo(() => {
+    if (formattedExportJsonContent) {
+      return hasSensitiveAccountNoteFieldInJson(formattedExportJsonContent);
+    }
+    return formattedExportDocuments.some((document) =>
+      hasSensitiveAccountNoteFieldInJson(document.jsonContent),
+    );
+  }, [formattedExportDocuments, formattedExportJsonContent]);
+
+  const exportCanToggleSensitiveNotes = useMemo(() => {
+    return (
+      exportFormat === "cockpit_tools" &&
+      Boolean(exportJsonContent) &&
+      codexExportHasSensitiveAccountNotes(exportJsonContent)
+    );
+  }, [exportFormat, exportJsonContent]);
+
+  const handleToggleExportSensitiveAccountNotes = useCallback(() => {
+    clearExportModalError();
+    setFormattedExportJsonCopied(false);
+    setFormattedExportSavedPath(null);
+    setFormattedExportSavedPathIsDirectory(false);
+    setFormattedExportPathCopied(false);
+    setFormattedBatchSavingExportJson(false);
+    setFormattedSavingExportDocumentId(null);
+    setIncludeSensitiveAccountNotesInExport((value) => !value);
+  }, [clearExportModalError]);
 
   const handleExportByIds = useCallback(
     async (ids: string[], fileNameBase?: string) => {
@@ -1819,6 +2202,7 @@ export function CodexAccountsContent() {
     setFormattedExportPathCopied(false);
     setFormattedBatchSavingExportJson(false);
     setFormattedSavingExportDocumentId(null);
+    setIncludeSensitiveAccountNotesInExport(true);
     clearExportModalError();
   }, [clearExportModalError, closeExportModal]);
 
@@ -3111,7 +3495,11 @@ export function CodexAccountsContent() {
   const openAccountNoteModal = useCallback(
     (account: CodexAccount) => {
       setEditingAccountNoteId(account.id);
-      setEditingAccountNoteValue(account.account_note || "");
+      setEditingAccountNoteForm(buildCodexAccountNoteForm(account));
+      setAccountNoteFieldErrors({});
+      setAccountNoteSecretVisible(true);
+      setAccountNotePasswordVisible(true);
+      setAccountNoteCopiedKey(null);
       setAccountNoteError(null);
     },
     [setAccountNoteError],
@@ -3120,7 +3508,9 @@ export function CodexAccountsContent() {
   const closeAccountNoteModal = useCallback(() => {
     if (savingAccountNote) return;
     setEditingAccountNoteId(null);
-    setEditingAccountNoteValue("");
+    setEditingAccountNoteForm(EMPTY_CODEX_ACCOUNT_NOTE_FORM);
+    setAccountNoteFieldErrors({});
+    setAccountNoteCopiedKey(null);
     setAccountNoteError(null);
   }, [savingAccountNote, setAccountNoteError]);
 
@@ -3207,17 +3597,37 @@ export function CodexAccountsContent() {
     if (!editingAccountNoteId || savingAccountNote) return;
     setSavingAccountNote(true);
     setAccountNoteError(null);
+    setAccountNoteFieldErrors({});
     try {
+      const rawTwoFactorSecret = editingAccountNoteForm.twoFactorSecret.trim();
+      const parsedTwoFactorSecret = rawTwoFactorSecret
+        ? parseMfaCredentialInput(rawTwoFactorSecret)
+        : null;
+      if (rawTwoFactorSecret && !parsedTwoFactorSecret) {
+        setAccountNoteFieldErrors({
+          twoFactorSecret: t(
+            "codex.accountNote.twoFactorSecretInvalid",
+            "2FA 秘钥格式无效，请输入 Base32 secret 或 otpauth:// 链接",
+          ),
+        });
+        return;
+      }
       await store.updateAccountNote(
         editingAccountNoteId,
-        editingAccountNoteValue,
+        {
+          note: editingAccountNoteForm.note,
+          twoFactorSecret: parsedTwoFactorSecret?.secret ?? rawTwoFactorSecret,
+          accountPassword: editingAccountNoteForm.accountPassword,
+          phoneNumber: editingAccountNoteForm.phoneNumber,
+        },
       );
       setMessage({
         text: t("codex.accountNote.saved", "账号备注已保存"),
         tone: "success",
       });
       setEditingAccountNoteId(null);
-      setEditingAccountNoteValue("");
+      setEditingAccountNoteForm(EMPTY_CODEX_ACCOUNT_NOTE_FORM);
+      setAccountNoteCopiedKey(null);
     } catch (error) {
       setAccountNoteError(
         t("codex.accountNote.saveFailed", {
@@ -3230,7 +3640,7 @@ export function CodexAccountsContent() {
     }
   }, [
     editingAccountNoteId,
-    editingAccountNoteValue,
+    editingAccountNoteForm,
     savingAccountNote,
     setAccountNoteError,
     setMessage,
@@ -3238,19 +3648,128 @@ export function CodexAccountsContent() {
     t,
   ]);
 
+  const editingAccountNoteOtpToken = useMemo(() => {
+    const secret = editingAccountNoteForm.twoFactorSecret.trim();
+    return secret ? getMfaOtpToken(secret) : "";
+  }, [editingAccountNoteForm.twoFactorSecret, mfaTimeRemaining]);
+
+  const copyAccountNoteValue = useCallback(
+    async (copyKey: string, value?: string | null) => {
+      const text = value?.trim();
+      if (!text) return;
+      await navigator.clipboard.writeText(text);
+      setAccountNoteCopiedKey(copyKey);
+      window.setTimeout(() => {
+        setAccountNoteCopiedKey((current) =>
+          current === copyKey ? null : current,
+        );
+      }, 1400);
+    },
+    [],
+  );
+
+  const renderAccountSensitiveNoteDetails = useCallback(
+    (account: CodexAccount, keyPrefix: string) => {
+      const twoFactorSecret = account.two_factor_secret?.trim() ?? "";
+      const accountPassword = account.account_password?.trim() ?? "";
+      const phoneNumber = account.phone_number?.trim() ?? "";
+      const note = account.account_note?.trim() ?? "";
+      if (!twoFactorSecret && !accountPassword && !phoneNumber && !note) {
+        return null;
+      }
+
+      const otpToken = twoFactorSecret
+        ? getMfaOtpToken(twoFactorSecret)
+        : "";
+      const renderItem = (
+        fieldKey: string,
+        label: string,
+        value: string,
+        extraClass = "",
+      ) => {
+        if (!value) return null;
+        const copyKey = `${keyPrefix}:${fieldKey}`;
+        const copied = accountNoteCopiedKey === copyKey;
+        return (
+          <span
+            key={fieldKey}
+            className={`codex-sensitive-note-item ${extraClass}`}
+            title={`${label}: ${value}`}
+          >
+            <span className="codex-sensitive-note-label">{label}</span>
+            <strong className="codex-sensitive-note-value">{value}</strong>
+            <button
+              type="button"
+              className="codex-sensitive-note-copy-btn"
+              aria-label={t("common.copy", "复制")}
+              title={t("common.copy", "复制")}
+              onClick={(event: ReactMouseEvent<HTMLButtonElement>) => {
+                event.preventDefault();
+                event.stopPropagation();
+                void copyAccountNoteValue(copyKey, value);
+              }}
+            >
+              {copied ? <Check size={12} /> : <Copy size={12} />}
+            </button>
+          </span>
+        );
+      };
+
+      return (
+        <div className="codex-sensitive-note-strip">
+          {renderItem(
+            "twoFactorSecret",
+            t("codex.accountNote.twoFactorSecretShort", "2FA"),
+            twoFactorSecret,
+          )}
+          {renderItem(
+            "otp",
+            t("codex.accountNote.otpShort", "验证码"),
+            otpToken,
+            "is-otp",
+          )}
+          {renderItem(
+            "password",
+            t("codex.accountNote.passwordShort", "密码"),
+            accountPassword,
+          )}
+          {renderItem(
+            "phoneNumber",
+            t("codex.accountNote.phoneShort", "手机"),
+            phoneNumber,
+          )}
+          {renderItem(
+            "note",
+            t("codex.accountNote.otherNoteShort", "备注"),
+            note,
+          )}
+          {otpToken && (
+            <span className="codex-sensitive-note-timer">
+              {t("codex.accountNote.otpRemaining", {
+                defaultValue: "{{seconds}}秒",
+                seconds: mfaTimeRemaining,
+              })}
+            </span>
+          )}
+        </div>
+      );
+    },
+    [accountNoteCopiedKey, copyAccountNoteValue, mfaTimeRemaining, t],
+  );
+
   const renderAccountNoteButton = useCallback(
     (account: CodexAccount, className = "codex-account-note-chip") => {
-      const hasNote = Boolean(account.account_note?.trim());
+      const hasNote = hasCodexAccountNoteDetails(account);
+      const fallbackTitle = t(
+        "codex.accountNote.emptyTitle",
+        "填写账号备注",
+      );
       return (
         <button
           type="button"
           className={`${className} ${hasNote ? "has-note" : "empty-note"}`}
           onClick={() => openAccountNoteModal(account)}
-          title={
-            hasNote
-              ? account.account_note
-              : t("codex.accountNote.emptyTitle", "填写账号备注")
-          }
+          title={getCodexAccountNoteTitle(account, fallbackTitle)}
         >
           <FileText size={12} />
           <span>
@@ -3563,6 +4082,14 @@ export function CodexAccountsContent() {
     oauthBindingTargetKind === "local_access" ||
     (oauthBindingTargetKind === "api_key_account" &&
       Boolean(oauthBindingAccount));
+  useEffect(() => {
+    if (!editingAccountNoteId && !oauthBindingTargetActive) return;
+    setMfaTimeRemaining(getMfaTimeRemaining());
+    const timer = window.setInterval(() => {
+      setMfaTimeRemaining(getMfaTimeRemaining());
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [editingAccountNoteId, oauthBindingTargetActive]);
   const cockpitApiPanelAccount = useMemo(
     () =>
       cockpitApiPanelAccountId
@@ -5017,94 +5544,26 @@ export function CodexAccountsContent() {
     setBatchImportFilePaths(paths);
     setBatchImportCheckQuota(checkQuota);
     setBatchImportBusy(true);
-    batchImportSessionIdRef.current = "__pending__";
+    batchImportSessionIdRef.current = null;
 
     try {
-      const progressUnlisten =
-        await listen<codexService.CodexBatchImportProgress>(
-          "codex:batch-import-progress",
-          (event) => {
-            if (event.payload.sessionId !== batchImportSessionIdRef.current) {
-              return;
-            }
-            setBatchImportProgress(event.payload);
-            setBatchImportCheckQuota(event.payload.checkQuota);
-          },
-        );
-      const completedUnlisten =
-        await listen<codexService.CodexBatchImportPreview>(
-          "codex:batch-import-completed",
-          (event) => {
-            if (event.payload.sessionId !== batchImportSessionIdRef.current) {
-              return;
-            }
-            setBatchImportPreview(event.payload);
-            setBatchImportCheckQuota(event.payload.checkQuota);
-            setBatchImportProgress((current) =>
-              current
-                ? {
-                    ...current,
-                    phase: event.payload.status,
-                    checkQuota: event.payload.checkQuota,
-                    current: event.payload.items.length,
-                    total: event.payload.total,
-                  }
-                : current,
-            );
-            setBatchImportSelectedIds((prev) => {
-              const next = new Set(prev);
-              for (const item of event.payload.items) {
-                if (
-                  item.defaultSelected &&
-                  item.selectable &&
-                  (item.status === "ready" || item.status === "existing")
-                ) {
-                  next.add(item.itemId);
-                }
-              }
-              return Array.from(next);
-            });
-            setBatchImportBusy(false);
-          },
-        );
-      const previewUnlisten =
-        await listen<codexService.CodexBatchImportPreview>(
-          "codex:batch-import-preview",
-          (event) => {
-            if (event.payload.sessionId !== batchImportSessionIdRef.current) {
-              return;
-            }
-            setBatchImportPreview(event.payload);
-            setBatchImportCheckQuota(event.payload.checkQuota);
-            setBatchImportSelectedIds((prev) => {
-              const next = new Set(prev);
-              for (const item of event.payload.items) {
-                if (
-                  item.defaultSelected &&
-                  item.selectable &&
-                  (item.status === "ready" || item.status === "existing")
-                ) {
-                  next.add(item.itemId);
-                }
-              }
-              return Array.from(next);
-            });
-          },
-        );
-      batchImportUnlistenersRef.current = [
-        progressUnlisten,
-        previewUnlisten,
-        completedUnlisten,
-      ];
-
       const started = await codexService.startCodexBatchImportFromFiles(
         paths,
         checkQuota,
       );
       batchImportSessionIdRef.current = started.sessionId;
       setBatchImportSessionId(started.sessionId);
+      rememberActiveBatchImportSession(started.sessionId);
+      await attachBatchImportListeners(started.sessionId);
+      const preview = await codexService.getCodexBatchImportPreview(
+        started.sessionId,
+      );
+      applyBatchImportPreview(preview);
+      setBatchImportProgress(progressFromBatchImportPreview(preview));
+      setBatchImportBusy(preview.status === "scanning");
     } catch (e) {
       cleanupBatchImportListeners();
+      forgetActiveBatchImportSession();
       batchImportSessionIdRef.current = null;
       setBatchImportBusy(false);
       setBatchImportError(String(e).replace(/^Error:\s*/, ""));
@@ -5161,15 +5620,12 @@ export function CodexAccountsContent() {
   };
 
   const handleCloseBatchImport = async () => {
-    const sessionId = batchImportSessionId;
-    if (batchImportBusy && sessionId) {
-      try {
-        await codexService.cancelCodexBatchImport(sessionId);
-      } catch {
-        // Closing is an explicit discard action; ignore cancellation failures.
-      }
+    if (batchImportResult || !batchImportSessionId) {
+      resetBatchImportState();
+      return;
     }
-    resetBatchImportState();
+    setBatchImportOpen(false);
+    setBatchImportError(null);
   };
 
   const toggleBatchImportItem = (itemId: string) => {
@@ -5234,6 +5690,8 @@ export function CodexAccountsContent() {
         });
       }
       cleanupBatchImportListeners();
+      forgetActiveBatchImportSession();
+      batchImportSessionIdRef.current = null;
     } catch (e) {
       setBatchImportError(String(e).replace(/^Error:\s*/, ""));
     } finally {
@@ -8895,12 +9353,12 @@ export function CodexAccountsContent() {
           {renderAccountSpeedSelect(account, true)}
           {!isApiKeyAccount && (
             <button
-              className={`codex-compact-note-btn ${account.account_note?.trim() ? "has-note" : ""}`}
+              className={`codex-compact-note-btn ${hasCodexAccountNoteDetails(account) ? "has-note" : ""}`}
               onClick={() => openAccountNoteModal(account)}
-              title={
-                account.account_note?.trim() ||
-                t("codex.accountNote.emptyTitle", "填写账号备注")
-              }
+              title={getCodexAccountNoteTitle(
+                account,
+                t("codex.accountNote.emptyTitle", "填写账号备注"),
+              )}
               aria-label={t("codex.accountNote.title", "账号备注")}
             >
               <FileText size={13} />
@@ -9094,7 +9552,7 @@ export function CodexAccountsContent() {
           </div>
           {(meta.accountContextText ||
             isInLocalAccess ||
-            (!isApiKeyAccount && account.account_note?.trim()) ||
+            (!isApiKeyAccount && hasCodexAccountNoteDetails(account)) ||
             resetCreditControls) && (
             <div className="account-sub-line">
               {meta.accountContextText && (
@@ -9334,12 +9792,12 @@ export function CodexAccountsContent() {
                 </button>
                 {!isApiKeyAccount && !isNewApiAccount && (
                   <button
-                    className={`card-action-btn ${account.account_note?.trim() ? "active" : ""}`}
+                    className={`card-action-btn ${hasCodexAccountNoteDetails(account) ? "active" : ""}`}
                     onClick={() => openAccountNoteModal(account)}
-                    title={
-                      account.account_note?.trim() ||
-                      t("codex.accountNote.emptyTitle", "填写账号备注")
-                    }
+                    title={getCodexAccountNoteTitle(
+                      account,
+                      t("codex.accountNote.emptyTitle", "填写账号备注"),
+                    )}
                     aria-label={t("codex.accountNote.title", "账号备注")}
                   >
                     <FileText size={14} />
@@ -10432,7 +10890,7 @@ export function CodexAccountsContent() {
               </div>
               {(meta.accountContextText ||
                 isInLocalAccess ||
-                (!isApiKeyAccount && account.account_note?.trim()) ||
+                (!isApiKeyAccount && hasCodexAccountNoteDetails(account)) ||
                 resetCreditControls) && (
                 <div className="account-sub-line codex-account-meta-inline">
                   {meta.accountContextText && (
@@ -10681,12 +11139,12 @@ export function CodexAccountsContent() {
               </button>
               {!isApiKeyAccount && !isNewApiAccount && (
                 <button
-                  className={`action-btn ${account.account_note?.trim() ? "active" : ""}`}
+                  className={`action-btn ${hasCodexAccountNoteDetails(account) ? "active" : ""}`}
                   onClick={() => openAccountNoteModal(account)}
-                  title={
-                    account.account_note?.trim() ||
-                    t("codex.accountNote.emptyTitle", "填写账号备注")
-                  }
+                  title={getCodexAccountNoteTitle(
+                    account,
+                    t("codex.accountNote.emptyTitle", "填写账号备注"),
+                  )}
                   aria-label={t("codex.accountNote.title", "账号备注")}
                 >
                   <FileText size={14} />
@@ -11511,6 +11969,124 @@ export function CodexAccountsContent() {
         onTabChange={setActiveTab}
         tabs={["overview", "providers", "wakeup", "instances", "sessions"]}
       />
+
+      {hiddenBatchImportTaskVisible && (
+        <div className="codex-batch-import-resume-bar">
+          <div className="codex-batch-import-resume-main">
+            <div className="codex-batch-import-resume-title">
+              <Download size={16} />
+              <strong>{t("codex.batchImport.title", "Codex 批量导入")}</strong>
+            </div>
+            <span>
+              {hiddenBatchImportStatusLabel}
+              {hiddenBatchImportTotal > 0
+                ? ` · ${hiddenBatchImportCurrent}/${hiddenBatchImportTotal}`
+                : ""}
+            </span>
+            <div className="codex-batch-import-resume-track">
+              <div
+                className="codex-batch-import-resume-fill"
+                style={{ width: `${hiddenBatchImportPercent}%` }}
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn btn-secondary compact"
+            onClick={() => setBatchImportOpen(true)}
+          >
+            {batchImportBusy && (
+              <RefreshCw size={14} className="loading-spinner" />
+            )}
+            {t("accounts.actions.viewDetails", "查看详情")}
+          </button>
+        </div>
+      )}
+
+      {batchDeleteVisible && (
+        <div className="codex-batch-import-resume-bar codex-batch-delete-progress-bar">
+          <div className="codex-batch-import-resume-main">
+            <div className="codex-batch-import-resume-title">
+              <Trash2 size={16} />
+              <strong>{t("codex.batchDelete.title", "Codex 批量删除")}</strong>
+            </div>
+            <span>
+              {batchDeleteStatusLabel}
+              {` · ${batchDeleteCompleted}/${batchDeleteTotal}`}
+              {batchDeleteJob?.failed
+                ? ` · ${t("common.failed", "失败")} ${batchDeleteJob.failed}`
+                : ""}
+            </span>
+            <div className="codex-batch-import-resume-track">
+              <div
+                className="codex-batch-import-resume-fill"
+                style={{ width: `${batchDeletePercent}%` }}
+              />
+            </div>
+            {batchDeleteJob?.errors?.length ? (
+              <div className="codex-batch-delete-errors">
+                {batchDeleteJob.errors.slice(0, 3).map((item) => (
+                  <span key={`${item.accountId}-${item.error}`}>
+                    {item.accountId}: {item.error}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <div className="codex-batch-delete-actions">
+            {batchDeleteJob?.status === "running" && (
+              <button
+                type="button"
+                className="btn btn-secondary compact"
+                disabled={batchDeleteActionBusy}
+                onClick={() => void runBatchDeleteAction(pauseBatchDeleteJob)}
+              >
+                <Pause size={14} />
+                {t("common.pause", "暂停")}
+              </button>
+            )}
+            {batchDeleteJob?.status === "paused" && (
+              <button
+                type="button"
+                className="btn btn-secondary compact"
+                disabled={batchDeleteActionBusy}
+                onClick={() => void runBatchDeleteAction(resumeBatchDeleteJob)}
+              >
+                <Play size={14} />
+                {t("common.resume", "继续")}
+              </button>
+            )}
+            {batchDeleteJob?.status === "failed" && batchDeleteJob.failed > 0 && (
+              <button
+                type="button"
+                className="btn btn-secondary compact"
+                disabled={batchDeleteActionBusy}
+                onClick={() =>
+                  void runBatchDeleteAction(retryFailedBatchDeleteJob)
+                }
+              >
+                <RotateCw size={14} />
+                {t("codex.batchDelete.retryFailed", "重试失败项")}
+              </button>
+            )}
+            {(batchDeleteJob?.status === "completed" ||
+              batchDeleteJob?.status === "failed" ||
+              batchDeleteJob?.status === "paused") && (
+              <button
+                type="button"
+                className="btn btn-secondary compact"
+                disabled={batchDeleteActionBusy}
+                onClick={() => void runBatchDeleteAction(clearBatchDeleteJob)}
+              >
+                {t("common.clear", "清除")}
+              </button>
+            )}
+            {batchDeleteJob?.status === "running" && (
+              <RefreshCw size={14} className="loading-spinner" />
+            )}
+          </div>
+        </div>
+      )}
 
       {batchImportOpen && (
         <div className="modal-overlay codex-batch-import-overlay">
@@ -13893,6 +14469,10 @@ export function CodexAccountsContent() {
                                             {subscriptionInfo.detailText}
                                           </span>
                                         </span>
+                                        {renderAccountSensitiveNoteDetails(
+                                          account,
+                                          `oauth:${account.id}`,
+                                        )}
                                       </div>
                                     </label>
                                   );
@@ -14518,6 +15098,42 @@ export function CodexAccountsContent() {
                     }
                   />
                 </div>
+                {exportCanToggleSensitiveNotes && (
+                  <button
+                    type="button"
+                    className={`btn btn-secondary btn-sm codex-export-sensitive-toggle ${
+                      includeSensitiveAccountNotesInExport ? "is-included" : "is-excluded"
+                    }`}
+                    onClick={handleToggleExportSensitiveAccountNotes}
+                    aria-pressed={!includeSensitiveAccountNotesInExport}
+                    title={t(
+                      "codex.accountNote.exportSensitiveToggleHint",
+                      "控制导出 JSON 是否包含 2FA 秘钥、密码和手机号。",
+                    )}
+                  >
+                    <KeyRound size={14} />
+                    {includeSensitiveAccountNotesInExport
+                      ? t(
+                          "codex.accountNote.exportSensitiveIncluded",
+                          "包含敏感备注",
+                        )
+                      : t(
+                          "codex.accountNote.exportSensitiveExcluded",
+                          "已排除敏感备注",
+                        )}
+                  </button>
+                )}
+                {formattedExportIncludesSensitiveNotes && (
+                  <div className="codex-export-sensitive-note">
+                    <CircleAlert size={14} />
+                    <span>
+                      {t(
+                        "codex.accountNote.exportSensitiveNotice",
+                        "导出内容包含 2FA 秘钥、密码或手机号，请只保存到可信位置。",
+                      )}
+                    </span>
+                  </div>
+                )}
               </>
             }
             onClose={handleCloseExportModal}
@@ -15403,25 +16019,270 @@ export function CodexAccountsContent() {
                         resolvePresentation(editingAccountNoteAccount)
                           .displayName,
                       ),
-                      defaultValue: "给 {{account}} 填写单独展示的账号备注。",
+                      defaultValue:
+                        "给 {{account}} 填写 2FA、密码、手机号和其他备注。",
                     })}
                   </p>
                   <label className="codex-account-note-field">
-                    <span>{t("codex.accountNote.label", "账号备注")}</span>
+                    <span>
+                      {t("codex.accountNote.twoFactorSecretLabel", "2FA 秘钥")}
+                    </span>
+                    <div className="codex-account-note-input-row">
+                      <input
+                        className={`codex-account-note-input ${
+                          accountNoteFieldErrors.twoFactorSecret
+                            ? "has-error"
+                            : ""
+                        }`}
+                        type={accountNoteSecretVisible ? "text" : "password"}
+                        value={editingAccountNoteForm.twoFactorSecret}
+                        onChange={(event) => {
+                          setEditingAccountNoteForm((prev) => ({
+                            ...prev,
+                            twoFactorSecret: event.target.value,
+                          }));
+                          setAccountNoteFieldErrors((prev) => ({
+                            ...prev,
+                            twoFactorSecret: undefined,
+                          }));
+                          setAccountNoteError(null);
+                        }}
+                        placeholder={t(
+                          "codex.accountNote.twoFactorSecretPlaceholder",
+                          "Base32 secret 或 otpauth:// 链接",
+                        )}
+                        disabled={savingAccountNote}
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        className="codex-account-note-icon-btn"
+                        onClick={() =>
+                          setAccountNoteSecretVisible((prev) => !prev)
+                        }
+                        disabled={savingAccountNote}
+                        aria-label={
+                          accountNoteSecretVisible
+                            ? t("codex.accountNote.hide", "隐藏")
+                            : t("codex.accountNote.show", "显示")
+                        }
+                        title={
+                          accountNoteSecretVisible
+                            ? t("codex.accountNote.hide", "隐藏")
+                            : t("codex.accountNote.show", "显示")
+                        }
+                      >
+                        {accountNoteSecretVisible ? (
+                          <EyeOff size={14} />
+                        ) : (
+                          <Eye size={14} />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className="codex-account-note-icon-btn"
+                        onClick={() =>
+                          void copyAccountNoteValue(
+                            "modal:twoFactorSecret",
+                            editingAccountNoteForm.twoFactorSecret,
+                          )
+                        }
+                        disabled={
+                          savingAccountNote ||
+                          !editingAccountNoteForm.twoFactorSecret.trim()
+                        }
+                        aria-label={t("common.copy", "复制")}
+                        title={t("common.copy", "复制")}
+                      >
+                        {accountNoteCopiedKey === "modal:twoFactorSecret" ? (
+                          <Check size={14} />
+                        ) : (
+                          <Copy size={14} />
+                        )}
+                      </button>
+                    </div>
+                    {accountNoteFieldErrors.twoFactorSecret ? (
+                      <span className="codex-account-note-field-error">
+                        {accountNoteFieldErrors.twoFactorSecret}
+                      </span>
+                    ) : editingAccountNoteForm.twoFactorSecret.trim() &&
+                      editingAccountNoteOtpToken ? (
+                      <div className="codex-account-note-otp-preview">
+                        <span>
+                          {t("codex.accountNote.currentOtp", "当前验证码")}
+                        </span>
+                        <strong>{editingAccountNoteOtpToken}</strong>
+                        <button
+                          type="button"
+                          className="codex-account-note-icon-btn"
+                          onClick={() =>
+                            void copyAccountNoteValue(
+                              "modal:otp",
+                              editingAccountNoteOtpToken,
+                            )
+                          }
+                          disabled={savingAccountNote}
+                          aria-label={t("common.copy", "复制")}
+                          title={t("common.copy", "复制")}
+                        >
+                          {accountNoteCopiedKey === "modal:otp" ? (
+                            <Check size={14} />
+                          ) : (
+                            <Copy size={14} />
+                          )}
+                        </button>
+                        <em>
+                          {t("codex.accountNote.otpRemaining", {
+                            defaultValue: "{{seconds}}秒",
+                            seconds: mfaTimeRemaining,
+                          })}
+                        </em>
+                      </div>
+                    ) : editingAccountNoteForm.twoFactorSecret.trim() ? (
+                      <span className="codex-account-note-field-error">
+                        {t(
+                          "codex.accountNote.twoFactorSecretInvalid",
+                          "2FA 秘钥格式无效，请输入 Base32 secret 或 otpauth:// 链接",
+                        )}
+                      </span>
+                    ) : null}
+                  </label>
+                  <label className="codex-account-note-field">
+                    <span>
+                      {t("codex.accountNote.passwordLabel", "账号密码")}
+                    </span>
+                    <div className="codex-account-note-input-row">
+                      <input
+                        className="codex-account-note-input"
+                        type={accountNotePasswordVisible ? "text" : "password"}
+                        value={editingAccountNoteForm.accountPassword}
+                        onChange={(event) => {
+                          setEditingAccountNoteForm((prev) => ({
+                            ...prev,
+                            accountPassword: event.target.value,
+                          }));
+                          setAccountNoteError(null);
+                        }}
+                        placeholder={t(
+                          "codex.accountNote.passwordPlaceholder",
+                          "登录密码或临时密码",
+                        )}
+                        disabled={savingAccountNote}
+                      />
+                      <button
+                        type="button"
+                        className="codex-account-note-icon-btn"
+                        onClick={() =>
+                          setAccountNotePasswordVisible((prev) => !prev)
+                        }
+                        disabled={savingAccountNote}
+                        aria-label={
+                          accountNotePasswordVisible
+                            ? t("codex.accountNote.hide", "隐藏")
+                            : t("codex.accountNote.show", "显示")
+                        }
+                        title={
+                          accountNotePasswordVisible
+                            ? t("codex.accountNote.hide", "隐藏")
+                            : t("codex.accountNote.show", "显示")
+                        }
+                      >
+                        {accountNotePasswordVisible ? (
+                          <EyeOff size={14} />
+                        ) : (
+                          <Eye size={14} />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className="codex-account-note-icon-btn"
+                        onClick={() =>
+                          void copyAccountNoteValue(
+                            "modal:password",
+                            editingAccountNoteForm.accountPassword,
+                          )
+                        }
+                        disabled={
+                          savingAccountNote ||
+                          !editingAccountNoteForm.accountPassword.trim()
+                        }
+                        aria-label={t("common.copy", "复制")}
+                        title={t("common.copy", "复制")}
+                      >
+                        {accountNoteCopiedKey === "modal:password" ? (
+                          <Check size={14} />
+                        ) : (
+                          <Copy size={14} />
+                        )}
+                      </button>
+                    </div>
+                  </label>
+                  <label className="codex-account-note-field">
+                    <span>
+                      {t("codex.accountNote.phoneNumberLabel", "手机号")}
+                    </span>
+                    <div className="codex-account-note-input-row">
+                      <input
+                        className="codex-account-note-input"
+                        type="tel"
+                        value={editingAccountNoteForm.phoneNumber}
+                        onChange={(event) => {
+                          setEditingAccountNoteForm((prev) => ({
+                            ...prev,
+                            phoneNumber: event.target.value,
+                          }));
+                          setAccountNoteError(null);
+                        }}
+                        placeholder={t(
+                          "codex.accountNote.phoneNumberPlaceholder",
+                          "绑定手机号",
+                        )}
+                        disabled={savingAccountNote}
+                      />
+                      <button
+                        type="button"
+                        className="codex-account-note-icon-btn"
+                        onClick={() =>
+                          void copyAccountNoteValue(
+                            "modal:phoneNumber",
+                            editingAccountNoteForm.phoneNumber,
+                          )
+                        }
+                        disabled={
+                          savingAccountNote ||
+                          !editingAccountNoteForm.phoneNumber.trim()
+                        }
+                        aria-label={t("common.copy", "复制")}
+                        title={t("common.copy", "复制")}
+                      >
+                        {accountNoteCopiedKey === "modal:phoneNumber" ? (
+                          <Check size={14} />
+                        ) : (
+                          <Copy size={14} />
+                        )}
+                      </button>
+                    </div>
+                  </label>
+                  <label className="codex-account-note-field">
+                    <span>
+                      {t("codex.accountNote.otherNoteLabel", "其他备注")}
+                    </span>
                     <textarea
                       className="codex-account-note-textarea"
-                      value={editingAccountNoteValue}
+                      value={editingAccountNoteForm.note}
                       onChange={(event) => {
-                        setEditingAccountNoteValue(event.target.value);
+                        setEditingAccountNoteForm((prev) => ({
+                          ...prev,
+                          note: event.target.value,
+                        }));
                         setAccountNoteError(null);
                       }}
                       placeholder={t(
                         "codex.accountNote.placeholder",
-                        "例如邮箱、密码、辅助邮箱或其他交付备注",
+                        "其他交付备注、辅助邮箱或账号说明",
                       )}
                       disabled={savingAccountNote}
-                      rows={5}
-                      autoFocus
+                      rows={4}
                     />
                   </label>
                 </div>

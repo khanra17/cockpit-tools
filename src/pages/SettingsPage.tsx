@@ -325,6 +325,7 @@ const QUICK_SETTINGS_OPEN_DELAYS_MS = [80, 220, 480] as const;
 
 type ConfigUpdatedEventDetail = {
   source?: string;
+  topRightAdVisible?: boolean;
 };
 
 type UpdateCheckSource = 'auto' | 'manual';
@@ -460,6 +461,19 @@ export function SettingsPage() {
         );
       }, delay);
     }
+  }, []);
+
+  const handleTopRightAdVisibleChange = useCallback((visible: boolean) => {
+    setTopRightAdVisible(visible);
+    persistStartupAppearance({ topRightAdVisible: visible });
+    window.dispatchEvent(
+      new CustomEvent<ConfigUpdatedEventDetail>('config-updated', {
+        detail: {
+          source: SETTINGS_PAGE_CONFIG_UPDATE_SOURCE,
+          topRightAdVisible: visible,
+        },
+      }),
+    );
   }, []);
 
   const startupPageOptions = useMemo(
@@ -1101,7 +1115,10 @@ export function SettingsPage() {
         });
         window.dispatchEvent(
           new CustomEvent<ConfigUpdatedEventDetail>('config-updated', {
-            detail: { source: SETTINGS_PAGE_CONFIG_UPDATE_SOURCE },
+            detail: {
+              source: SETTINGS_PAGE_CONFIG_UPDATE_SOURCE,
+              topRightAdVisible,
+            },
           }),
         );
       } catch (err) {
@@ -1110,11 +1127,7 @@ export function SettingsPage() {
       }
     }, 300);
 
-    return () => {
-      if (generalSaveTimerRef.current) {
-        window.clearTimeout(generalSaveTimerRef.current);
-      }
-    };
+    return undefined;
   }, [
     autoRefresh,
     codexAutoRefresh,
@@ -3033,7 +3046,7 @@ export function SettingsPage() {
                     <input
                       type="checkbox"
                       checked={topRightAdVisible}
-                      onChange={(e) => setTopRightAdVisible(e.target.checked)}
+                      onChange={(e) => handleTopRightAdVisibleChange(e.target.checked)}
                     />
                     <span className="slider"></span>
                   </label>

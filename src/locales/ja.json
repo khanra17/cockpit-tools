@@ -225,7 +225,9 @@
     "deleteTagWarning": "すべてのアカウントからタグを削除してもよろしいですか？",
     "expand": "展開",
     "processing": "処理中...",
-    "selectAll": "すべて選択"
+    "selectAll": "すべて選択",
+    "pause": "一時停止",
+    "resume": "再開"
   },
   "nav": {
     "overview": "Antigravity IDE​",
@@ -1051,7 +1053,9 @@
         "unresolvedRefs": "{{count}} 件のアカウント紐付けを照合できず、スキップしました",
         "disabledTasks": "一致するアカウントがないため {{count}} 件のタスクを無効化しました",
         "restartRequired": "ネットワークサービス設定を復元しました。一部の変更は再起動後に反映されます",
-        "partialAccountFailure": "一部のアカウントのインポートに失敗しました: {{error}}"
+        "partialAccountFailure": "一部のアカウントのインポートに失敗しました: {{error}}",
+        "codexSessionsImported": "Codex セッションを {{imported}} 件インポートし、{{skipped}} 件をスキップしました",
+        "codexSessionsMissingTargets": "{{count}} 個の Codex 元インスタンスにローカルの対象がありません"
       },
       "errors": {
         "selectionRequired": "少なくとも 1 つのデータ種別を選択してください",
@@ -1987,6 +1991,7 @@
       "refreshStatsSuccess": "API サービスの統計を更新しました",
       "routingStrategy": {
         "auto": "自動（推奨）",
+        "singleAccount": "最初のアカウントに固定",
         "quotaHighFirst": "高クォータ優先",
         "quotaLowFirst": "低クォータ優先",
         "planHighFirst": "上位プラン優先",
@@ -2557,7 +2562,12 @@
         "instanceScopeAll": "全インスタンス",
         "instanceScopeAllDesc": "複数インスタンスをまとめて復元する場合にすべて修復します。",
         "progressTitle": "修復の進行状況",
-        "start": "修復を開始"
+        "start": "修復を開始",
+        "previewing": "プレビュー中...",
+        "previewAgain": "再プレビュー",
+        "preview": "変更をプレビュー",
+        "previewFailedWithError": "セッション修復のプレビューに失敗しました：{{error}}",
+        "confirmRepair": "修復を確定"
       }
     },
     "api": {
@@ -3001,8 +3011,29 @@
     "accountNote": {
       "title": "アカウントメモ",
       "label": "アカウントメモ",
-      "desc": "{{account}} 用の個別メモを追加します。",
-      "placeholder": "メール、パスワード、復旧メール、受け渡しメモなど",
+      "desc": "{{account}} に 2FA、パスワード、電話番号、その他メモを追加します。",
+      "twoFactorSecretLabel": "2FA シークレット",
+      "twoFactorSecretShort": "2FA",
+      "twoFactorSecretPlaceholder": "Base32 secret または otpauth:// URI",
+      "twoFactorSecretInvalid": "2FA シークレットが無効です。Base32 secret または otpauth:// URI を入力してください。",
+      "currentOtp": "現在のコード",
+      "otpShort": "コード",
+      "otpRemaining": "{{seconds}}秒",
+      "passwordLabel": "パスワード",
+      "passwordShort": "パスワード",
+      "passwordPlaceholder": "ログイン用または一時パスワード",
+      "phoneNumberLabel": "電話番号",
+      "phoneShort": "電話",
+      "phoneNumberPlaceholder": "紐付け済み電話番号",
+      "otherNoteLabel": "その他メモ",
+      "otherNoteShort": "メモ",
+      "placeholder": "受け渡しメモ、復旧メール、アカウント詳細など",
+      "exportSensitiveNotice": "エクスポートには 2FA シークレット、パスワード、電話番号が含まれます。信頼できる場所にのみ保存してください。",
+      "exportSensitiveIncluded": "機密メモを含める",
+      "exportSensitiveExcluded": "機密メモを除外",
+      "exportSensitiveToggleHint": "エクスポートする JSON に 2FA シークレット、パスワード、電話番号を含めるかを切り替えます。",
+      "show": "表示",
+      "hide": "非表示",
       "emptyTitle": "アカウントメモを追加",
       "short": "メモ",
       "addShort": "追加",
@@ -3097,7 +3128,11 @@
         "pricingUnset": "未設定",
         "pricingReset": "リセット",
         "pricingSaved": "価格設定を保存しました",
-        "pricingInvalid": "価格は 0 以上の数値で入力してください"
+        "pricingInvalid": "価格は 0 以上の数値で入力してください",
+        "pricingVersion": "現在の価格バージョン v{{version}}",
+        "pricingRepriceHistory": "履歴を再見積もり",
+        "pricingRepriceHint": "現在の価格バージョンでリクエストログと統計の見積額を更新します。",
+        "pricingRepriceSuccess": "過去リクエストの見積額を現在の価格で再計算しました"
       },
       "keys": {
         "policyTitle": "モデルポリシー",
@@ -3303,6 +3338,15 @@
       "debugReasonCode": "理由コード",
       "debugRemainingReferrals": "残り招待数",
       "debugAccountStructure": "アカウント構造"
+    },
+    "batchDelete": {
+      "title": "Codex 一括削除",
+      "running": "削除中",
+      "paused": "一時停止中",
+      "failed": "一部失敗",
+      "completed": "削除完了",
+      "preparing": "削除タスクを準備中...",
+      "retryFailed": "失敗分を再試行"
     }
   },
   "githubCopilot": {

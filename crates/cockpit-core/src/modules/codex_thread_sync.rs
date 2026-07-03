@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use chrono::{SecondsFormat, Utc};
@@ -52,6 +52,63 @@ pub struct CodexInstanceTargetThreadSyncSummary {
     pub missing_session_count: usize,
     pub backup_dir: Option<String>,
     pub running: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexSessionTransferBundle {
+    pub version: u32,
+    pub exported_at: String,
+    pub instances: Vec<CodexSessionTransferInstance>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexSessionTransferInstance {
+    pub instance_id: String,
+    pub instance_name: String,
+    pub is_default: bool,
+    pub sessions: Vec<CodexSessionTransferRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexSessionTransferRecord {
+    pub session_id: String,
+    pub rollout_relative_path: String,
+    pub rollout_content: String,
+    pub rollout_modified_at_ms: Option<i64>,
+    pub session_index_entry: JsonValue,
+    pub workspace_root: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexSessionTransferImportItem {
+    pub source_instance_id: String,
+    pub source_instance_name: String,
+    pub target_instance_id: Option<String>,
+    pub target_instance_name: Option<String>,
+    pub imported_session_count: usize,
+    pub skipped_existing_count: usize,
+    pub missing_target: bool,
+    pub backup_dir: Option<String>,
+    pub metadata_rebuild_failed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexSessionTransferImportSummary {
+    pub source_instance_count: usize,
+    pub target_instance_count: usize,
+    pub exported_session_count: usize,
+    pub imported_session_count: usize,
+    pub skipped_existing_count: usize,
+    pub missing_target_instance_count: usize,
+    pub metadata_rebuild_failed_count: usize,
+    pub backup_dirs: Vec<String>,
+    pub items: Vec<CodexSessionTransferImportItem>,
     pub message: String,
 }
 
@@ -416,6 +473,210 @@ pub fn sync_sessions_to_instance(
     })
 }
 
+pub fn export_session_transfer_bundle() -> Result<CodexSessionTransferBundle, String> {
+    let instances = collect_instances()?;
+    let mut exported_instances = Vec::new();
+
+    for instance in instances {
+        let snapshots = load_thread_snapshots(&instance)?;
+        let mut sessions = Vec::with_capacity(snapshots.len());
+        for snapshot in snapshots {
+            let relative_path = snapshot
+                .rollout_path
+                .strip_prefix(&snapshot.source_root)
+                .map_err(|_| {
+                    format!(
+                        "会话 {} 的 rollout 路径不在实例目录下: {}",
+                        snapshot.id,
+                        snapshot.rollout_path.display()
+                    )
+                })?
+                .to_string_lossy()
+                .replace('\\', "/");
+            let rollout_content = fs::read_to_string(&snapshot.rollout_path).map_err(|error| {
+                format!(
+                    "读取会话 rollout 文件失败 ({}): {}",
+                    snapshot.rollout_path.display(),
+                    error
+                )
+            })?;
+            sessions.push(CodexSessionTransferRecord {
+                session_id: snapshot.id,
+                rollout_relative_path: relative_path,
+                rollout_content,
+                rollout_modified_at_ms: snapshot
+                    .rollout_modified_at
+                    .and_then(system_time_to_unix_millis),
+                session_index_entry: snapshot.session_index_entry,
+                workspace_root: snapshot.workspace_root,
+            });
+        }
+
+        exported_instances.push(CodexSessionTransferInstance {
+            is_default: instance.id == DEFAULT_INSTANCE_ID,
+            instance_id: instance.id,
+            instance_name: instance.name,
+            sessions,
+        });
+    }
+
+    Ok(CodexSessionTransferBundle {
+        version: 1,
+        exported_at: Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
+        instances: exported_instances,
+    })
+}
+
+pub fn import_session_transfer_bundle(
+    bundle: CodexSessionTransferBundle,
+) -> Result<CodexSessionTransferImportSummary, String> {
+    if bundle.version != 1 {
+        return Err(format!(
+            "不支持的 Codex 会话 Bundle 版本: {}",
+            bundle.version
+        ));
+    }
+
+    let target_instances = collect_instances()?;
+    let mut targets_by_id = target_instances
+        .iter()
+        .map(|instance| (instance.id.clone(), instance.clone()))
+        .collect::<HashMap<_, _>>();
+    let default_target = target_instances
+        .iter()
+        .find(|instance| instance.id == DEFAULT_INSTANCE_ID)
+        .cloned();
+    let target_instance_count = target_instances.len();
+    let exported_session_count = bundle
+        .instances
+        .iter()
+        .map(|instance| instance.sessions.len())
+        .sum::<usize>();
+
+    let mut imported_session_count = 0usize;
+    let mut skipped_existing_count = 0usize;
+    let mut missing_target_instance_count = 0usize;
+    let mut metadata_rebuild_failed_count = 0usize;
+    let mut backup_dirs = Vec::new();
+    let mut items = Vec::new();
+
+    for source in bundle.instances {
+        let target = targets_by_id.remove(&source.instance_id).or_else(|| {
+            if source.is_default {
+                default_target.clone()
+            } else {
+                None
+            }
+        });
+        let Some(target) = target else {
+            missing_target_instance_count += 1;
+            items.push(CodexSessionTransferImportItem {
+                source_instance_id: source.instance_id,
+                source_instance_name: source.instance_name,
+                target_instance_id: None,
+                target_instance_name: None,
+                imported_session_count: 0,
+                skipped_existing_count: 0,
+                missing_target: true,
+                backup_dir: None,
+                metadata_rebuild_failed: false,
+            });
+            continue;
+        };
+
+        let existing = load_thread_snapshots(&target)?
+            .into_iter()
+            .map(|snapshot| (snapshot.id.clone(), snapshot))
+            .collect::<HashMap<_, _>>();
+        let mut snapshots_to_import = Vec::new();
+        let mut skipped = 0usize;
+
+        let source_instance_id = source.instance_id.clone();
+        let source_instance_name = source.instance_name.clone();
+        for record in source.sessions {
+            let snapshot =
+                transfer_record_to_snapshot(&source_instance_id, &source_instance_name, record)?;
+            match existing.get(&snapshot.id) {
+                Some(existing_snapshot)
+                    if existing_snapshot.freshness >= snapshot.freshness
+                        && snapshot_rollout_matches(existing_snapshot, &snapshot)
+                        && snapshot_modified_time_matches(existing_snapshot, &snapshot) =>
+                {
+                    skipped += 1;
+                }
+                Some(existing_snapshot) if existing_snapshot.freshness > snapshot.freshness => {
+                    skipped += 1;
+                }
+                _ => snapshots_to_import.push(snapshot),
+            }
+        }
+
+        if snapshots_to_import.is_empty() {
+            skipped_existing_count += skipped;
+            items.push(CodexSessionTransferImportItem {
+                source_instance_id,
+                source_instance_name,
+                target_instance_id: Some(target.id),
+                target_instance_name: Some(target.name),
+                imported_session_count: 0,
+                skipped_existing_count: skipped,
+                missing_target: false,
+                backup_dir: None,
+                metadata_rebuild_failed: false,
+            });
+            continue;
+        }
+
+        let write_result = sync_missing_threads_to_instance(&target, &snapshots_to_import)?;
+        let backup_dir = write_result.backup_dir.to_string_lossy().to_string();
+        if write_result.metadata_rebuild_failed {
+            metadata_rebuild_failed_count += 1;
+        }
+        imported_session_count += snapshots_to_import.len();
+        skipped_existing_count += skipped;
+        backup_dirs.push(backup_dir.clone());
+        items.push(CodexSessionTransferImportItem {
+            source_instance_id,
+            source_instance_name,
+            target_instance_id: Some(target.id),
+            target_instance_name: Some(target.name),
+            imported_session_count: snapshots_to_import.len(),
+            skipped_existing_count: skipped,
+            missing_target: false,
+            backup_dir: Some(backup_dir),
+            metadata_rebuild_failed: write_result.metadata_rebuild_failed,
+        });
+    }
+
+    let message = if imported_session_count == 0 && missing_target_instance_count == 0 {
+        "Codex 会话已是最新，无需导入".to_string()
+    } else if imported_session_count == 0 {
+        format!(
+            "未导入 Codex 会话，{} 个源实例在本机缺少对应目标实例",
+            missing_target_instance_count
+        )
+    } else {
+        let base = format!(
+            "已导入 {} 条 Codex 会话，跳过 {} 条本机已有或更新的会话",
+            imported_session_count, skipped_existing_count
+        );
+        append_metadata_rebuild_warning(base, metadata_rebuild_failed_count, imported_session_count)
+    };
+
+    Ok(CodexSessionTransferImportSummary {
+        source_instance_count: items.len(),
+        target_instance_count,
+        exported_session_count,
+        imported_session_count,
+        skipped_existing_count,
+        missing_target_instance_count,
+        metadata_rebuild_failed_count,
+        backup_dirs,
+        items,
+        message,
+    })
+}
+
 fn collect_instances() -> Result<Vec<CodexSyncInstance>, String> {
     let mut instances = Vec::new();
     let default_dir = modules::codex_instance::get_default_codex_home()?;
@@ -441,6 +702,116 @@ fn collect_instances() -> Result<Vec<CodexSyncInstance>, String> {
     }
 
     Ok(instances)
+}
+
+fn transfer_record_to_snapshot(
+    source_instance_id: &str,
+    source_instance_name: &str,
+    record: CodexSessionTransferRecord,
+) -> Result<ThreadSnapshot, String> {
+    let session_id = record.session_id.trim().to_string();
+    if session_id.is_empty() {
+        return Err(format!(
+            "Codex 会话 Bundle 中存在空 session id: instance={}",
+            source_instance_name
+        ));
+    }
+    let relative_path = safe_transfer_rollout_relative_path(&record.rollout_relative_path)?;
+    let source_root = PathBuf::from(format!(
+        "__codex_session_transfer__/{}",
+        sanitize_file_name(source_instance_id)
+    ));
+    let rollout_path = source_root.join(relative_path);
+    let modified_at = record
+        .rollout_modified_at_ms
+        .and_then(unix_millis_to_system_time);
+    let (activity_ms, rollout_len) = rollout_content_activity_and_len(&record.rollout_content);
+    let index_activity_ms =
+        parse_session_index_updated_at_ms(&record.session_index_entry).unwrap_or(0);
+    let rollout_modified_ms = record.rollout_modified_at_ms.unwrap_or(0) as i128;
+    let activity_ms =
+        index_activity_ms
+            .max(activity_ms)
+            .max(if index_activity_ms == 0 && activity_ms == 0 {
+                rollout_modified_ms
+            } else {
+                0
+            });
+
+    Ok(ThreadSnapshot {
+        id: session_id,
+        rollout_path,
+        rollout_actual_modified_at: modified_at,
+        rollout_modified_at: modified_at,
+        merged_rollout_content: Some(record.rollout_content),
+        session_index_entry: record.session_index_entry,
+        workspace_root: record.workspace_root,
+        source_root,
+        freshness: ThreadFreshness {
+            activity_ms,
+            rollout_len,
+            rollout_modified_ms,
+        },
+    })
+}
+
+fn safe_transfer_rollout_relative_path(raw: &str) -> Result<PathBuf, String> {
+    let raw = raw.trim().replace('\\', "/");
+    if raw.is_empty() {
+        return Err("Codex 会话 Bundle 中存在空 rollout 路径".to_string());
+    }
+    let path = Path::new(&raw);
+    if path.is_absolute() {
+        return Err(format!("Codex 会话 Bundle 包含绝对 rollout 路径: {}", raw));
+    }
+
+    let mut components = Vec::new();
+    for component in path.components() {
+        match component {
+            Component::Normal(part) => components.push(part.to_os_string()),
+            Component::CurDir => {}
+            _ => {
+                return Err(format!(
+                    "Codex 会话 Bundle 包含不安全 rollout 路径: {}",
+                    raw
+                ))
+            }
+        }
+    }
+    if components.is_empty() {
+        return Err("Codex 会话 Bundle 中存在空 rollout 路径".to_string());
+    }
+    let first = components
+        .first()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default();
+    if !SESSION_DIRS.contains(&first) {
+        return Err(format!(
+            "Codex 会话 Bundle rollout 路径不在会话目录下: {}",
+            raw
+        ));
+    }
+    let file_name = components
+        .last()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default();
+    if !file_name.starts_with("rollout-") || !file_name.ends_with(".jsonl") {
+        return Err(format!("Codex 会话 Bundle rollout 文件名不合法: {}", raw));
+    }
+    Ok(components.into_iter().collect())
+}
+
+fn system_time_to_unix_millis(time: SystemTime) -> Option<i64> {
+    time.duration_since(UNIX_EPOCH)
+        .ok()
+        .and_then(|duration| i64::try_from(duration.as_millis()).ok())
+}
+
+fn unix_millis_to_system_time(value: i64) -> Option<SystemTime> {
+    if value < 0 {
+        return None;
+    }
+    Some(UNIX_EPOCH + std::time::Duration::from_millis(value as u64))
 }
 
 fn is_instance_running(
@@ -1594,6 +1965,37 @@ mod tests {
             original_modified_at
         );
         fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn transfer_record_rejects_unsafe_rollout_paths() {
+        assert!(safe_transfer_rollout_relative_path("sessions/2026/05/23/rollout-a.jsonl").is_ok());
+        assert!(safe_transfer_rollout_relative_path("../sessions/rollout-a.jsonl").is_err());
+        assert!(safe_transfer_rollout_relative_path("/tmp/rollout-a.jsonl").is_err());
+        assert!(safe_transfer_rollout_relative_path("config.toml").is_err());
+        assert!(safe_transfer_rollout_relative_path("sessions/not-a-rollout.txt").is_err());
+    }
+
+    #[test]
+    fn transfer_record_builds_snapshot_with_content() {
+        let record = CodexSessionTransferRecord {
+            session_id: "s1".to_string(),
+            rollout_relative_path: "sessions/2026/05/23/rollout-s1.jsonl".to_string(),
+            rollout_content: "{\"type\":\"session_meta\",\"payload\":{\"id\":\"s1\"}}\n{\"timestamp\":1710000000000}\n".to_string(),
+            rollout_modified_at_ms: Some(1_710_000_000_000),
+            session_index_entry: json!({"id":"s1","thread_name":"Test"}),
+            workspace_root: Some("/tmp/project".to_string()),
+        };
+
+        let snapshot =
+            transfer_record_to_snapshot("source", "Source", record).expect("build snapshot");
+
+        assert_eq!(snapshot.id, "s1");
+        assert!(snapshot.merged_rollout_content.is_some());
+        assert!(snapshot
+            .rollout_path
+            .ends_with("sessions/2026/05/23/rollout-s1.jsonl"));
+        assert_eq!(snapshot.workspace_root.as_deref(), Some("/tmp/project"));
     }
 
     #[test]

@@ -1007,6 +1007,13 @@ export function CodexLocalAccessModal({
           label: t("codex.localAccess.routingStrategy.auto", "自动（推荐）"),
         },
         {
+          value: "single_account",
+          label: t(
+            "codex.localAccess.routingStrategy.singleAccount",
+            "固定首个账号",
+          ),
+        },
+        {
           value: "quota_high_first",
           label: t(
             "codex.localAccess.routingStrategy.quotaHighFirst",

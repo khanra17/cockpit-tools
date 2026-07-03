@@ -225,7 +225,9 @@
     "deleteTagWarning": "Bạn có chắc chắn muốn xóa thẻ này khỏi tất cả tài khoản không?",
     "expand": "Mở rộng",
     "processing": "Đang xử lý...",
-    "selectAll": "Chọn tất cả"
+    "selectAll": "Chọn tất cả",
+    "pause": "Tạm dừng",
+    "resume": "Tiếp tục"
   },
   "nav": {
     "overview": "Antigravity IDE​",
@@ -1051,7 +1053,9 @@
         "unresolvedRefs": "Có {{count}} liên kết tài khoản không khớp và đã bị bỏ qua",
         "disabledTasks": "Đã tắt {{count}} tác vụ vì không khớp được tài khoản",
         "restartRequired": "Đã khôi phục cài đặt dịch vụ mạng. Một số thay đổi sẽ có hiệu lực sau khi khởi động lại",
-        "partialAccountFailure": "Một số tài khoản nhập thất bại: {{error}}"
+        "partialAccountFailure": "Một số tài khoản nhập thất bại: {{error}}",
+        "codexSessionsImported": "Đã nhập {{imported}} phiên Codex, bỏ qua {{skipped}}",
+        "codexSessionsMissingTargets": "{{count}} phiên bản nguồn Codex không có đích cục bộ"
       },
       "errors": {
         "selectionRequired": "Hãy chọn ít nhất một loại dữ liệu",
@@ -1987,6 +1991,7 @@
       "refreshStatsSuccess": "Đã làm mới thống kê dịch vụ API",
       "routingStrategy": {
         "auto": "Tự động (khuyến nghị)",
+        "singleAccount": "Cố định tài khoản đầu",
         "quotaHighFirst": "Ưu tiên hạn mức cao",
         "quotaLowFirst": "Ưu tiên hạn mức thấp",
         "planHighFirst": "Ưu tiên gói cao",
@@ -2557,7 +2562,12 @@
         "instanceScopeAll": "Tất cả phiên bản",
         "instanceScopeAllDesc": "Sửa mọi phiên bản Codex khi khôi phục nhiều phiên bản.",
         "progressTitle": "Tiến trình sửa",
-        "start": "Sửa"
+        "start": "Sửa",
+        "previewing": "Đang xem trước...",
+        "previewAgain": "Xem lại",
+        "preview": "Xem trước thay đổi",
+        "previewFailedWithError": "Xem trước sửa phiên thất bại: {{error}}",
+        "confirmRepair": "Xác nhận sửa"
       }
     },
     "api": {
@@ -3001,8 +3011,29 @@
     "accountNote": {
       "title": "Ghi chú tài khoản",
       "label": "Ghi chú tài khoản",
-      "desc": "Thêm ghi chú tài khoản riêng cho {{account}}.",
-      "placeholder": "Email, mật khẩu, email khôi phục hoặc ghi chú bàn giao",
+      "desc": "Thêm 2FA, mật khẩu, điện thoại và ghi chú khác cho {{account}}.",
+      "twoFactorSecretLabel": "Mã bí mật 2FA",
+      "twoFactorSecretShort": "2FA",
+      "twoFactorSecretPlaceholder": "Mã Base32 hoặc URI otpauth://",
+      "twoFactorSecretInvalid": "Mã bí mật 2FA không hợp lệ. Nhập mã Base32 hoặc URI otpauth://.",
+      "currentOtp": "Mã hiện tại",
+      "otpShort": "Mã",
+      "otpRemaining": "{{seconds}} giây",
+      "passwordLabel": "Mật khẩu",
+      "passwordShort": "Mật khẩu",
+      "passwordPlaceholder": "Mật khẩu đăng nhập hoặc tạm thời",
+      "phoneNumberLabel": "Điện thoại",
+      "phoneShort": "ĐT",
+      "phoneNumberPlaceholder": "Số điện thoại đã liên kết",
+      "otherNoteLabel": "Ghi chú khác",
+      "otherNoteShort": "Ghi chú",
+      "placeholder": "Ghi chú bàn giao, email khôi phục hoặc chi tiết tài khoản",
+      "exportSensitiveNotice": "Bản xuất chứa mã 2FA, mật khẩu hoặc số điện thoại. Chỉ lưu vào vị trí tin cậy.",
+      "exportSensitiveIncluded": "Gồm ghi chú nhạy cảm",
+      "exportSensitiveExcluded": "Loại ghi chú nhạy cảm",
+      "exportSensitiveToggleHint": "Kiểm soát JSON xuất ra có gồm mã 2FA, mật khẩu và số điện thoại hay không.",
+      "show": "Hiện",
+      "hide": "Ẩn",
       "emptyTitle": "Thêm ghi chú tài khoản",
       "short": "Ghi chú",
       "addShort": "Thêm",
@@ -3097,7 +3128,11 @@
         "pricingUnset": "Chưa đặt",
         "pricingReset": "Đặt lại",
         "pricingSaved": "Đã lưu giá",
-        "pricingInvalid": "Giá phải là số lớn hơn hoặc bằng 0"
+        "pricingInvalid": "Giá phải là số lớn hơn hoặc bằng 0",
+        "pricingVersion": "Phiên bản giá hiện tại v{{version}}",
+        "pricingRepriceHistory": "Tính lại lịch sử",
+        "pricingRepriceHint": "Làm mới số tiền ước tính trong nhật ký yêu cầu và thống kê theo phiên bản giá hiện tại.",
+        "pricingRepriceSuccess": "Ước tính yêu cầu lịch sử đã được tính lại theo giá hiện tại"
       },
       "keys": {
         "policyTitle": "Chính sách mô hình",
@@ -3303,6 +3338,15 @@
       "debugReasonCode": "Mã lý do",
       "debugRemainingReferrals": "Số lời mời còn lại",
       "debugAccountStructure": "Cấu trúc tài khoản"
+    },
+    "batchDelete": {
+      "title": "Xóa hàng loạt Codex",
+      "running": "Đang xóa",
+      "paused": "Đã tạm dừng",
+      "failed": "Lỗi một phần",
+      "completed": "Xóa xong",
+      "preparing": "Đang chuẩn bị tác vụ xóa...",
+      "retryFailed": "Thử lại lỗi"
     }
   },
   "githubCopilot": {

@@ -225,7 +225,9 @@
     "deleteTagWarning": "Opravdu chcete odstranit tento štítek ze všech účtů?",
     "expand": "Rozbalit",
     "processing": "Zpracovávám...",
-    "selectAll": "Vybrat vše"
+    "selectAll": "Vybrat vše",
+    "pause": "Pozastavit",
+    "resume": "Pokračovat"
   },
   "nav": {
     "overview": "Antigravity IDE​",
@@ -1051,7 +1053,9 @@
         "unresolvedRefs": "{{count}} vazeb účtů se nepodařilo spárovat a byly přeskočeny",
         "disabledTasks": "{{count}} úloh bylo zakázáno, protože nebylo možné spárovat účet",
         "restartRequired": "Nastavení síťové služby byla obnovena. Některé změny se projeví až po restartu",
-        "partialAccountFailure": "Import některých účtů selhal: {{error}}"
+        "partialAccountFailure": "Import některých účtů selhal: {{error}}",
+        "codexSessionsImported": "Importováno {{imported}} relací Codex, přeskočeno {{skipped}}",
+        "codexSessionsMissingTargets": "{{count}} zdrojových instancí Codex nemá místní cíl"
       },
       "errors": {
         "selectionRequired": "Vyberte alespoň jeden typ dat",
@@ -1987,6 +1991,7 @@
       "refreshStatsSuccess": "Statistiky služby API byly obnoveny",
       "routingStrategy": {
         "auto": "Automaticky (doporučeno)",
+        "singleAccount": "Pevný první účet",
         "quotaHighFirst": "Nejvyšší kvóta napřed",
         "quotaLowFirst": "Nejnižší kvóta napřed",
         "planHighFirst": "Nejvyšší tarif napřed",
@@ -2557,7 +2562,12 @@
         "instanceScopeAll": "Všechny instance",
         "instanceScopeAllDesc": "Opraví všechny instance Codex při obnově více instancí.",
         "progressTitle": "Průběh opravy",
-        "start": "Opravit"
+        "start": "Opravit",
+        "previewing": "Probíhá náhled...",
+        "previewAgain": "Zobrazit znovu",
+        "preview": "Náhled změn",
+        "previewFailedWithError": "Náhled opravy relace selhal: {{error}}",
+        "confirmRepair": "Potvrdit opravu"
       }
     },
     "api": {
@@ -3001,8 +3011,29 @@
     "accountNote": {
       "title": "Poznámka účtu",
       "label": "Poznámka účtu",
-      "desc": "Přidejte samostatnou poznámku k účtu {{account}}.",
-      "placeholder": "E-mail, heslo, obnovovací e-mail nebo poznámky k předání",
+      "desc": "Přidejte 2FA, heslo, telefon a další poznámky pro {{account}}.",
+      "twoFactorSecretLabel": "2FA tajný klíč",
+      "twoFactorSecretShort": "2FA",
+      "twoFactorSecretPlaceholder": "Base32 secret nebo otpauth:// URI",
+      "twoFactorSecretInvalid": "Neplatný 2FA tajný klíč. Zadejte Base32 secret nebo otpauth:// URI.",
+      "currentOtp": "Aktuální kód",
+      "otpShort": "Kód",
+      "otpRemaining": "{{seconds}} s",
+      "passwordLabel": "Heslo",
+      "passwordShort": "Heslo",
+      "passwordPlaceholder": "Přihlašovací nebo dočasné heslo",
+      "phoneNumberLabel": "Telefon",
+      "phoneShort": "Telefon",
+      "phoneNumberPlaceholder": "Navázané telefonní číslo",
+      "otherNoteLabel": "Další poznámky",
+      "otherNoteShort": "Poznámka",
+      "placeholder": "Předávací poznámky, obnovovací e-mail nebo údaje účtu",
+      "exportSensitiveNotice": "Export obsahuje 2FA tajné klíče, hesla nebo telefonní čísla. Uložte jej pouze na důvěryhodné místo.",
+      "exportSensitiveIncluded": "Včetně citlivých poznámek",
+      "exportSensitiveExcluded": "Bez citlivých poznámek",
+      "exportSensitiveToggleHint": "Určuje, zda exportovaný JSON obsahuje 2FA tajné klíče, hesla a telefonní čísla.",
+      "show": "Zobrazit",
+      "hide": "Skrýt",
       "emptyTitle": "Přidat poznámku účtu",
       "short": "Poznámka",
       "addShort": "Přidat",
@@ -3097,7 +3128,11 @@
         "pricingUnset": "Nenast.",
         "pricingReset": "Obnovit",
         "pricingSaved": "Ceny uloženy",
-        "pricingInvalid": "Ceny musí být čísla větší nebo rovna 0"
+        "pricingInvalid": "Ceny musí být čísla větší nebo rovna 0",
+        "pricingVersion": "Aktuální verze cen v{{version}}",
+        "pricingRepriceHistory": "Přepočítat historii",
+        "pricingRepriceHint": "Aktualizuje odhadované částky v protokolech a statistikách podle aktuální verze cen.",
+        "pricingRepriceSuccess": "Historické odhady požadavků byly přepočítány podle aktuálních cen"
       },
       "keys": {
         "policyTitle": "Zásady modelů",
@@ -3303,6 +3338,15 @@
       "debugReasonCode": "Kód důvodu",
       "debugRemainingReferrals": "Zbývající pozvánky",
       "debugAccountStructure": "Struktura účtu"
+    },
+    "batchDelete": {
+      "title": "Hromadné mazání Codex",
+      "running": "Mazání",
+      "paused": "Pozastaveno",
+      "failed": "Částečné selhání",
+      "completed": "Mazání dokončeno",
+      "preparing": "Příprava mazání...",
+      "retryFailed": "Opakovat selhané"
     }
   },
   "githubCopilot": {

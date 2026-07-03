@@ -195,10 +195,69 @@ pub fn data_transfer_get_instance_store(platform: String) -> Result<InstanceStor
 }
 
 #[tauri::command]
+pub fn data_transfer_get_import_instance_dir(
+    platform: String,
+    instance_id: String,
+) -> Result<String, String> {
+    let platform = platform.trim();
+    if platform.is_empty() {
+        return Err("不支持的实例平台".to_string());
+    }
+    let safe_platform = platform
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    let safe_instance_id = instance_id
+        .trim()
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    let safe_instance_id = if safe_instance_id.is_empty() {
+        "imported".to_string()
+    } else {
+        safe_instance_id
+    };
+    Ok(modules::app_data::get_data_dir()?
+        .join("data-transfer")
+        .join("instances")
+        .join(safe_platform)
+        .join(safe_instance_id)
+        .to_string_lossy()
+        .to_string())
+}
+
+#[tauri::command]
 pub fn data_transfer_replace_instance_store(
     platform: String,
     store: InstanceStore,
 ) -> Result<(), String> {
     let sanitized = sanitize_instance_store(&store);
     save_instance_store_by_platform(platform.trim(), &sanitized)
+}
+
+#[tauri::command]
+pub fn data_transfer_export_codex_sessions() -> Result<serde_json::Value, String> {
+    modules::platform_adapter::call_codex("sessions.transfer.export", serde_json::json!({}))
+}
+
+#[tauri::command]
+pub fn data_transfer_import_codex_sessions(
+    bundle: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    modules::platform_adapter::call_codex(
+        "sessions.transfer.import",
+        serde_json::json!({ "bundle": bundle }),
+    )
 }

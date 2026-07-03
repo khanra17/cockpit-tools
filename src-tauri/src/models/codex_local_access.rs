@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub enum CodexLocalAccessRoutingStrategy {
     Auto,
+    SingleAccount,
     QuotaHighFirst,
     QuotaLowFirst,
     PlanHighFirst,
@@ -149,6 +150,10 @@ pub struct CodexLocalAccessModelPricing {
 
 fn default_session_affinity_ttl_ms() -> i64 {
     60 * 60 * 1000
+}
+
+fn default_model_pricing_version() -> u64 {
+    1
 }
 
 fn default_max_retry_interval_ms() -> u64 {
@@ -420,6 +425,8 @@ pub struct CodexLocalAccessCollection {
     pub account_model_rules: Vec<CodexLocalAccessAccountModelRule>,
     #[serde(default)]
     pub model_aliases: Vec<CodexLocalAccessModelAlias>,
+    #[serde(default = "default_model_pricing_version")]
+    pub model_pricing_version: u64,
     #[serde(default)]
     pub model_pricings: Vec<CodexLocalAccessModelPricing>,
     #[serde(default)]
@@ -587,6 +594,8 @@ pub struct CodexLocalAccessUsageEvent {
     pub reasoning_tokens: u64,
     #[serde(default)]
     pub estimated_cost_usd: f64,
+    #[serde(default = "default_model_pricing_version")]
+    pub model_pricing_version: u64,
     #[serde(default)]
     pub input_usd_per_million: f64,
     #[serde(default)]

@@ -89,6 +89,7 @@ import {
 import { OverviewTabsHeader } from '../components/OverviewTabsHeader'
 import styles from '../styles/CompactView.module.css'
 import { FileCorruptedModal, parseFileCorruptedError, type FileCorruptedError } from '../components/FileCorruptedModal'
+import { AccountSelectionToolbar } from '../components/AccountSelectionToolbar'
 import { QuickSettingsPopover } from '../components/QuickSettingsPopover'
 import {
   isPrivacyModeEnabledByDefault,
@@ -3543,7 +3544,28 @@ export function AccountsPage({ onNavigate, hideHeader = false }: AccountsPagePro
             >
               <Upload size={14} />
             </button>
-            {selected.size > 0 && (
+            {!activeGroupId && (
+              <button
+                className="btn btn-secondary icon-only"
+                onClick={() => setShowAccountGroupModal(true)}
+                title={t('accounts.groups.manageTitle')}
+                aria-label={t('accounts.groups.manageTitle')}
+              >
+                <FolderOpen size={14} />
+              </button>
+            )}
+            <QuickSettingsPopover type="antigravity" />
+          </div>
+        </div>
+
+        {filteredAccounts.length > 0 && (
+          <AccountSelectionToolbar
+            selectedCount={selected.size}
+            allSelected={allPaginatedSelected}
+            disabled={paginatedIds.length === 0}
+            onToggleSelectAll={toggleSelectAll}
+            onClearSelection={() => setSelected(new Set())}
+            actions={(
               <>
                 <button
                   className="btn btn-secondary icon-only"
@@ -3563,19 +3585,8 @@ export function AccountsPage({ onNavigate, hideHeader = false }: AccountsPagePro
                 </button>
               </>
             )}
-            {!activeGroupId && (
-              <button
-                className="btn btn-secondary icon-only"
-                onClick={() => setShowAccountGroupModal(true)}
-                title={t('accounts.groups.manageTitle')}
-                aria-label={t('accounts.groups.manageTitle')}
-              >
-                <FolderOpen size={14} />
-              </button>
-            )}
-            <QuickSettingsPopover type="antigravity" />
-          </div>
-        </div>
+          />
+        )}
 
         {message && (
           <div

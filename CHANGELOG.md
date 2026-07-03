@@ -7,6 +7,28 @@ All notable changes to Cockpit Tools will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
+## [1.0.2] - 2026-07-03
+
+### Added
+- **Codex account notes now support sensitive details**: account notes can store 2FA secrets, passwords, phone numbers, and general notes, with current 2FA codes available from account cards and operation dialogs.
+- **Codex batch import and deletion are better suited for long-running work**: batch import can recover tasks, while batch deletion now shows progress and supports pause, resume, retry failed items, and clear actions.
+- **Codex data transfer now supports sessions**: account transfer can export and import Codex sessions, skip existing sessions, and report missing target instances.
+- **Codex local API service now supports single-account routing and history repricing**: requests can stay on the first account, and historical request estimates can be recalculated with current model prices.
+- **Codex session visibility repair now supports previews**: planned instance and session changes can be reviewed before applying the repair.
+
+### Changed
+- **Codex model provider list parsing is more compatible**: more common model-list response shapes are supported, including display names.
+- **A single dashboard platform card no longer stretches across the full row**: it keeps half-row width on desktop and falls back to one column on narrow screens.
+- **Bulk selection is more consistent across platform account pages**: Antigravity, Cursor, Gemini, GitHub Copilot, Kiro, Qoder, Trae, Windsurf, Zed, and CodeBuddy account pages now share the same bulk selection toolbar.
+- **Platform package actions are more compact**: duplicate toolbar actions are reduced and secondary actions such as uninstall move into the more menu to reduce crowding in narrow windows.
+
+### Fixed
+- **Fixed Codex configuration saves resetting fields unexpectedly**: saving account notes, API key settings, or local gateway options no longer resets provider, Base URL, model catalog, or `image_generation` settings.
+- **Fixed local platform adapter RPC calls incorrectly using system proxy settings**: local adapter RPC bypasses proxies and preserves fuller low-level network errors for OAuth, account refresh, and local RPC troubleshooting.
+- **Improved Cursor account refresh and OAuth errors**: failures now include more complete low-level network error chains.
+- **Fixed top banner visibility settings not syncing immediately to the current window**.
+
+---
 ## [1.0.1] - 2026-07-02
 
 ### Added

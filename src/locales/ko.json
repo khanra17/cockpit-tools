@@ -225,7 +225,9 @@
     "deleteTagWarning": "모든 계정에서 이 태그를 삭제하시겠습니까?",
     "expand": "펼치기",
     "processing": "처리 중...",
-    "selectAll": "전체 선택"
+    "selectAll": "전체 선택",
+    "pause": "일시 중지",
+    "resume": "계속"
   },
   "nav": {
     "overview": "Antigravity IDE​",
@@ -1051,7 +1053,9 @@
         "unresolvedRefs": "계정 연결 {{count}}개를 매칭하지 못해 건너뛰었습니다",
         "disabledTasks": "매칭되는 계정이 없어 작업 {{count}}개를 비활성화했습니다",
         "restartRequired": "네트워크 서비스 설정을 복원했습니다. 일부 변경 사항은 재시작 후 적용됩니다",
-        "partialAccountFailure": "일부 계정 가져오기에 실패했습니다: {{error}}"
+        "partialAccountFailure": "일부 계정 가져오기에 실패했습니다: {{error}}",
+        "codexSessionsImported": "Codex 세션 {{imported}}개를 가져오고 {{skipped}}개를 건너뜀",
+        "codexSessionsMissingTargets": "Codex 원본 인스턴스 {{count}}개에 로컬 대상이 없습니다"
       },
       "errors": {
         "selectionRequired": "데이터 유형을 하나 이상 선택하세요",
@@ -1987,6 +1991,7 @@
       "refreshStatsSuccess": "API 서비스 통계를 새로고침했습니다",
       "routingStrategy": {
         "auto": "자동(권장)",
+        "singleAccount": "첫 계정 고정",
         "quotaHighFirst": "높은 할당량 우선",
         "quotaLowFirst": "낮은 할당량 우선",
         "planHighFirst": "상위 요금제 우선",
@@ -2557,7 +2562,12 @@
         "instanceScopeAll": "모든 인스턴스",
         "instanceScopeAllDesc": "여러 Codex 인스턴스를 함께 복구할 때 모두 처리합니다.",
         "progressTitle": "복구 진행률",
-        "start": "복구 시작"
+        "start": "복구 시작",
+        "previewing": "미리 보는 중...",
+        "previewAgain": "다시 미리보기",
+        "preview": "변경 미리보기",
+        "previewFailedWithError": "세션 복구 미리보기에 실패했습니다: {{error}}",
+        "confirmRepair": "복구 확인"
       }
     },
     "api": {
@@ -3001,8 +3011,29 @@
     "accountNote": {
       "title": "계정 메모",
       "label": "계정 메모",
-      "desc": "{{account}}에 별도 계정 메모를 추가합니다.",
-      "placeholder": "이메일, 비밀번호, 복구 이메일 또는 전달 메모",
+      "desc": "{{account}}에 2FA, 비밀번호, 전화번호 및 기타 메모를 추가합니다.",
+      "twoFactorSecretLabel": "2FA 시크릿",
+      "twoFactorSecretShort": "2FA",
+      "twoFactorSecretPlaceholder": "Base32 secret 또는 otpauth:// URI",
+      "twoFactorSecretInvalid": "2FA 시크릿이 올바르지 않습니다. Base32 secret 또는 otpauth:// URI를 입력하세요.",
+      "currentOtp": "현재 코드",
+      "otpShort": "코드",
+      "otpRemaining": "{{seconds}}초",
+      "passwordLabel": "비밀번호",
+      "passwordShort": "비밀번호",
+      "passwordPlaceholder": "로그인 또는 임시 비밀번호",
+      "phoneNumberLabel": "전화번호",
+      "phoneShort": "전화",
+      "phoneNumberPlaceholder": "연결된 전화번호",
+      "otherNoteLabel": "기타 메모",
+      "otherNoteShort": "메모",
+      "placeholder": "전달 메모, 복구 이메일 또는 계정 세부 정보",
+      "exportSensitiveNotice": "내보내기에는 2FA 시크릿, 비밀번호 또는 전화번호가 포함됩니다. 신뢰할 수 있는 위치에만 저장하세요.",
+      "exportSensitiveIncluded": "민감한 메모 포함",
+      "exportSensitiveExcluded": "민감한 메모 제외",
+      "exportSensitiveToggleHint": "내보내는 JSON에 2FA 시크릿, 비밀번호, 전화번호를 포함할지 제어합니다.",
+      "show": "표시",
+      "hide": "숨기기",
       "emptyTitle": "계정 메모 추가",
       "short": "메모",
       "addShort": "추가",
@@ -3097,7 +3128,11 @@
         "pricingUnset": "미설정",
         "pricingReset": "재설정",
         "pricingSaved": "가격 저장됨",
-        "pricingInvalid": "가격은 0 이상의 숫자여야 합니다"
+        "pricingInvalid": "가격은 0 이상의 숫자여야 합니다",
+        "pricingVersion": "현재 가격 버전 v{{version}}",
+        "pricingRepriceHistory": "기록 재계산",
+        "pricingRepriceHint": "현재 가격 버전으로 요청 로그와 통계의 예상 금액을 갱신합니다.",
+        "pricingRepriceSuccess": "이전 요청 예상 금액을 현재 가격으로 다시 계산했습니다"
       },
       "keys": {
         "policyTitle": "모델 정책",
@@ -3303,6 +3338,15 @@
       "debugReasonCode": "사유 코드",
       "debugRemainingReferrals": "남은 초대 수",
       "debugAccountStructure": "계정 구조"
+    },
+    "batchDelete": {
+      "title": "Codex 일괄 삭제",
+      "running": "삭제 중",
+      "paused": "일시 중지됨",
+      "failed": "일부 실패",
+      "completed": "삭제 완료",
+      "preparing": "삭제 작업 준비 중...",
+      "retryFailed": "실패 항목 재시도"
     }
   },
   "githubCopilot": {

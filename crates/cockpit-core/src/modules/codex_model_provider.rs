@@ -223,19 +223,52 @@ fn select_model_provider_chat_test_model(
     first_non_empty_model_id(model_catalog)
 }
 
-fn model_ids_from_provider_models(body: &Value) -> Vec<String> {
+fn provider_model_items(body: &Value) -> Vec<&Value> {
     body.get("data")
         .and_then(|value| value.as_array())
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| item.get("id").and_then(|id| id.as_str()))
-                .map(str::trim)
-                .filter(|id| !id.is_empty())
-                .map(ToOwned::to_owned)
-                .collect()
-        })
+        .or_else(|| body.get("models").and_then(|value| value.as_array()))
+        .or_else(|| body.as_array())
+        .map(|items| items.iter().collect())
         .unwrap_or_default()
+}
+
+fn model_provider_item_text(item: &Value, keys: &[&str]) -> Option<String> {
+    if keys.is_empty() {
+        return item
+            .as_str()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned);
+    }
+    keys.iter().find_map(|key| {
+        item.get(*key)
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+    })
+}
+
+fn model_provider_item_id(item: &Value) -> Option<String> {
+    model_provider_item_text(item, &[])
+        .or_else(|| model_provider_item_text(item, &["id", "slug", "name"]))
+}
+
+fn model_provider_item_display_name(item: &Value, id: &str) -> Option<String> {
+    model_provider_item_text(
+        item,
+        &["display_name", "displayName", "label", "title", "name"],
+    )
+    .filter(|value| !value.eq_ignore_ascii_case(id))
+}
+
+fn model_ids_from_provider_models(body: &Value) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    provider_model_items(body)
+        .into_iter()
+        .filter_map(model_provider_item_id)
+        .filter(|id| seen.insert(id.to_ascii_lowercase()))
+        .collect()
 }
 
 fn first_model_from_provider_models(body: &Value, wire_api: &str) -> Option<String> {
@@ -466,18 +499,10 @@ fn codex_model_provider_failure(
 }
 
 fn summarize_model_provider_models(body: &Value) -> (Option<String>, Option<String>) {
-    let ids: Vec<String> = body
-        .get("data")
-        .and_then(|value| value.as_array())
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| item.get("id").and_then(|id| id.as_str()))
-                .take(8)
-                .map(|id| id.to_string())
-                .collect()
-        })
-        .unwrap_or_default();
+    let ids: Vec<String> = model_ids_from_provider_models(body)
+        .into_iter()
+        .take(8)
+        .collect();
     let first = ids.first().cloned();
     let output = if ids.is_empty() {
         None
@@ -489,34 +514,20 @@ fn summarize_model_provider_models(body: &Value) -> (Option<String>, Option<Stri
 
 fn list_model_provider_models(body: &Value) -> Vec<CodexModelProviderModel> {
     let mut seen = std::collections::HashSet::new();
-    body.get("data")
-        .and_then(|value| value.as_array())
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| {
-                    let id = item.get("id").and_then(|id| id.as_str())?.trim();
-                    if id.is_empty() {
-                        return None;
-                    }
-                    let key = id.to_ascii_lowercase();
-                    if !seen.insert(key) {
-                        return None;
-                    }
-                    Some(CodexModelProviderModel {
-                        id: id.to_string(),
-                        display_name: item
-                            .get("display_name")
-                            .or_else(|| item.get("displayName"))
-                            .and_then(|value| value.as_str())
-                            .map(str::trim)
-                            .filter(|value| !value.is_empty())
-                            .map(str::to_string),
-                    })
-                })
-                .collect()
+    provider_model_items(body)
+        .into_iter()
+        .filter_map(|item| {
+            let id = model_provider_item_id(item)?;
+            let key = id.to_ascii_lowercase();
+            if !seen.insert(key) {
+                return None;
+            }
+            Some(CodexModelProviderModel {
+                display_name: model_provider_item_display_name(item, &id),
+                id,
+            })
         })
-        .unwrap_or_default()
+        .collect()
 }
 
 fn json_f64_at(value: &Value, path: &[&str]) -> Option<f64> {
@@ -1219,6 +1230,50 @@ mod tests {
 
     fn models(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| (*value).to_string()).collect()
+    }
+
+    #[test]
+    fn parses_model_provider_models_from_common_shapes() {
+        let openai_shape = serde_json::json!({
+            "data": [
+                { "id": "gpt-5.5", "displayName": "GPT 5.5" },
+                { "id": "gpt-5.5" },
+                { "id": "gpt-5-mini" }
+            ]
+        });
+        assert_eq!(
+            model_ids_from_provider_models(&openai_shape),
+            models(&["gpt-5.5", "gpt-5-mini"])
+        );
+        assert_eq!(
+            list_model_provider_models(&openai_shape)[0]
+                .display_name
+                .as_deref(),
+            Some("GPT 5.5")
+        );
+
+        let models_shape = serde_json::json!({
+            "models": [
+                { "slug": "deepseek-chat", "name": "DeepSeek Chat" },
+                { "name": "kimi-k2" }
+            ]
+        });
+        assert_eq!(
+            model_ids_from_provider_models(&models_shape),
+            models(&["deepseek-chat", "kimi-k2"])
+        );
+        assert_eq!(
+            list_model_provider_models(&models_shape)[0]
+                .display_name
+                .as_deref(),
+            Some("DeepSeek Chat")
+        );
+
+        let array_shape = serde_json::json!(["qwen-max", { "id": "glm-4.5" }]);
+        assert_eq!(
+            model_ids_from_provider_models(&array_shape),
+            models(&["qwen-max", "glm-4.5"])
+        );
     }
 
     #[test]

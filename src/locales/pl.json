@@ -225,7 +225,9 @@
     "deleteTagWarning": "Czy na pewno chcesz usunąć ten tag ze wszystkich kont?",
     "expand": "Rozwiń",
     "processing": "Przetwarzanie...",
-    "selectAll": "Zaznacz wszystko"
+    "selectAll": "Zaznacz wszystko",
+    "pause": "Pauza",
+    "resume": "Wznów"
   },
   "nav": {
     "overview": "Antigravity IDE​",
@@ -1051,7 +1053,9 @@
         "unresolvedRefs": "Nie udało się dopasować {{count}} powiązań kont i zostały pominięte",
         "disabledTasks": "Wyłączono {{count}} zadań, ponieważ nie udało się dopasować konta",
         "restartRequired": "Przywrócono ustawienia usługi sieciowej. Część zmian zacznie działać po ponownym uruchomieniu",
-        "partialAccountFailure": "Import części kont nie powiódł się: {{error}}"
+        "partialAccountFailure": "Import części kont nie powiódł się: {{error}}",
+        "codexSessionsImported": "Zaimportowano sesje Codex: {{imported}}, pominięto: {{skipped}}",
+        "codexSessionsMissingTargets": "{{count}} instancji źródłowych Codex nie ma lokalnego celu"
       },
       "errors": {
         "selectionRequired": "Wybierz co najmniej jeden typ danych",
@@ -1987,6 +1991,7 @@
       "refreshStatsSuccess": "Statystyki usługi API zostały odświeżone",
       "routingStrategy": {
         "auto": "Automatycznie (zalecane)",
+        "singleAccount": "Stałe pierwsze konto",
         "quotaHighFirst": "Najpierw wysoki limit",
         "quotaLowFirst": "Najpierw niski limit",
         "planHighFirst": "Najpierw wyższy plan",
@@ -2557,7 +2562,12 @@
         "instanceScopeAll": "Wszystkie instancje",
         "instanceScopeAllDesc": "Naprawia wszystkie instancje Codex przy wspólnym odtwarzaniu.",
         "progressTitle": "Postęp naprawy",
-        "start": "Napraw"
+        "start": "Napraw",
+        "previewing": "Podgląd...",
+        "previewAgain": "Ponów podgląd",
+        "preview": "Podgląd zmian",
+        "previewFailedWithError": "Nie udało się podejrzeć naprawy sesji: {{error}}",
+        "confirmRepair": "Potwierdź naprawę"
       }
     },
     "api": {
@@ -3001,8 +3011,29 @@
     "accountNote": {
       "title": "Notatka konta",
       "label": "Notatka konta",
-      "desc": "Dodaj osobną notatkę konta dla {{account}}.",
-      "placeholder": "E-mail, hasło, e-mail odzyskiwania lub notatki dostawy",
+      "desc": "Dodaj 2FA, hasło, telefon i inne notatki dla {{account}}.",
+      "twoFactorSecretLabel": "Sekret 2FA",
+      "twoFactorSecretShort": "2FA",
+      "twoFactorSecretPlaceholder": "Sekret Base32 lub URI otpauth://",
+      "twoFactorSecretInvalid": "Nieprawidłowy sekret 2FA. Wpisz sekret Base32 lub URI otpauth://.",
+      "currentOtp": "Aktualny kod",
+      "otpShort": "Kod",
+      "otpRemaining": "{{seconds}} s",
+      "passwordLabel": "Hasło",
+      "passwordShort": "Hasło",
+      "passwordPlaceholder": "Hasło logowania lub tymczasowe",
+      "phoneNumberLabel": "Telefon",
+      "phoneShort": "Telefon",
+      "phoneNumberPlaceholder": "Powiązany numer telefonu",
+      "otherNoteLabel": "Inne notatki",
+      "otherNoteShort": "Notatka",
+      "placeholder": "Notatki przekazania, e-mail odzyskiwania lub szczegóły konta",
+      "exportSensitiveNotice": "Eksport zawiera sekrety 2FA, hasła lub numery telefonu. Zapisuj go tylko w zaufanej lokalizacji.",
+      "exportSensitiveIncluded": "Dołącz poufne notatki",
+      "exportSensitiveExcluded": "Pomiń poufne notatki",
+      "exportSensitiveToggleHint": "Określa, czy eksportowany JSON zawiera sekrety 2FA, hasła i numery telefonu.",
+      "show": "Pokaż",
+      "hide": "Ukryj",
       "emptyTitle": "Dodaj notatkę konta",
       "short": "Notatka",
       "addShort": "Dodaj",
@@ -3097,7 +3128,11 @@
         "pricingUnset": "Brak",
         "pricingReset": "Resetuj",
         "pricingSaved": "Ceny zapisane",
-        "pricingInvalid": "Ceny muszą być liczbami większymi lub równymi 0"
+        "pricingInvalid": "Ceny muszą być liczbami większymi lub równymi 0",
+        "pricingVersion": "Bieżąca wersja cen v{{version}}",
+        "pricingRepriceHistory": "Przelicz historię",
+        "pricingRepriceHint": "Odświeża szacowane kwoty w logach żądań i statystykach według bieżącej wersji cen.",
+        "pricingRepriceSuccess": "Historyczne wyceny żądań przeliczono według bieżących cen"
       },
       "keys": {
         "policyTitle": "Polityka modeli",
@@ -3303,6 +3338,15 @@
       "debugReasonCode": "Kod przyczyny",
       "debugRemainingReferrals": "Pozostałe zaproszenia",
       "debugAccountStructure": "Struktura konta"
+    },
+    "batchDelete": {
+      "title": "Masowe usuwanie Codex",
+      "running": "Usuwanie",
+      "paused": "Wstrzymano",
+      "failed": "Częściowe niepowodzenie",
+      "completed": "Usuwanie zakończone",
+      "preparing": "Przygotowywanie usuwania...",
+      "retryFailed": "Ponów błędne"
     }
   },
   "githubCopilot": {

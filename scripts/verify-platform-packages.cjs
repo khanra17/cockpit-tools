@@ -1174,10 +1174,11 @@ function verifyPackagingTooling() {
 
   const packageIndexScript = readText(PACKAGE_INDEX_SCRIPT_PATH, relative(PACKAGE_INDEX_SCRIPT_PATH));
   for (const expected of [
-    '--metadata-dir <path>',
-    '--download-base-url <url>',
-    '--require-os-arch <list>',
-    '--verify-zip-dir <path>',
+	    '--metadata-dir <path>',
+	    '--download-base-url <url>',
+	    '--platforms <list>',
+	    '--require-os-arch <list>',
+	    '--verify-zip-dir <path>',
     'macos/aarch64',
     'macos/x86_64',
     'linux/x86_64',
@@ -1194,8 +1195,10 @@ function verifyPackagingTooling() {
     'scripts/build-platform-ui.cjs',
     'scripts/package-platform-package.cjs',
     'scripts/build-platform-package-index.cjs',
-    'scripts/build-platform-package-history.cjs',
-    'macos-aarch64',
+	    'scripts/build-platform-package-history.cjs',
+	    'platforms:',
+	    'PLATFORM_PACKAGES',
+	    'macos-aarch64',
     'macos-x86_64',
     'linux-x86_64',
     'linux-aarch64',

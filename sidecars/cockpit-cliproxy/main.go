@@ -1439,6 +1439,9 @@ func (s *cockpitSelector) orderAuths(auths []*coreauth.Auth, start int) []*corea
 		return auths
 	}
 	strategy := strings.TrimSpace(strings.ToLower(s.manifest.RoutingStrategy))
+	if strategy == "single_account" {
+		return auths
+	}
 	if strategy == "custom" {
 		return s.orderCustom(auths, start)
 	}

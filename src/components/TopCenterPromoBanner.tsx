@@ -17,6 +17,10 @@ interface PromoVisibilityConfig {
   top_right_ad_visible?: boolean;
 }
 
+interface ConfigUpdatedEventDetail {
+  topRightAdVisible?: boolean;
+}
+
 const PROMO_ROTATION_INTERVAL_MS = 6000;
 
 export function TopCenterPromoBanner({ reserveWhenEmpty = true }: TopCenterPromoBannerProps) {
@@ -32,7 +36,14 @@ export function TopCenterPromoBanner({ reserveWhenEmpty = true }: TopCenterPromo
   useEffect(() => {
     let cancelled = false;
 
-    const loadVisibility = async () => {
+    const loadVisibility = async (event?: Event) => {
+      const detail = (event as CustomEvent<ConfigUpdatedEventDetail> | undefined)?.detail;
+      if (typeof detail?.topRightAdVisible === 'boolean') {
+        setVisible(detail.topRightAdVisible);
+        persistStartupAppearance({ topRightAdVisible: detail.topRightAdVisible });
+        return;
+      }
+
       try {
         const config = await invoke<PromoVisibilityConfig>('get_general_config');
         if (!cancelled) {

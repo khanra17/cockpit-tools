@@ -1,9 +1,11 @@
 import { invoke } from '@tauri-apps/api/core';
 import {
   CodexAccount,
+  CodexAccountNoteUpdate,
   CodexApiProviderMode,
   CodexAppSpeed,
   CodexAppSpeedConfig,
+  CodexBatchDeleteJobStatus,
   CodexProviderWireApi,
   CodexQuickConfig,
   CodexQuota,
@@ -113,6 +115,40 @@ export async function deleteCodexAccount(accountId: string): Promise<void> {
 /** 批量删除 Codex 账号 */
 export async function deleteCodexAccounts(accountIds: string[]): Promise<void> {
   return await invoke('delete_codex_accounts', { accountIds });
+}
+
+export async function startCodexBatchDelete(
+  accountIds: string[],
+): Promise<CodexBatchDeleteJobStatus> {
+  return await invoke('start_codex_batch_delete', { accountIds });
+}
+
+export async function getCodexBatchDelete(
+  jobId: string,
+): Promise<CodexBatchDeleteJobStatus> {
+  return await invoke('get_codex_batch_delete', { jobId });
+}
+
+export async function resumeCodexBatchDelete(
+  jobId: string,
+): Promise<CodexBatchDeleteJobStatus> {
+  return await invoke('resume_codex_batch_delete', { jobId });
+}
+
+export async function pauseCodexBatchDelete(
+  jobId: string,
+): Promise<CodexBatchDeleteJobStatus> {
+  return await invoke('pause_codex_batch_delete', { jobId });
+}
+
+export async function retryFailedCodexBatchDelete(
+  jobId: string,
+): Promise<CodexBatchDeleteJobStatus> {
+  return await invoke('retry_failed_codex_batch_delete', { jobId });
+}
+
+export async function clearCodexBatchDelete(jobId: string): Promise<void> {
+  return await invoke('clear_codex_batch_delete', { jobId });
 }
 
 /** 从本地 auth.json 导入账号 */
@@ -374,8 +410,8 @@ export async function updateCodexApiKeyCredentials(
     apiProviderName: apiProviderName ?? null,
     apiModelCatalog: apiModelCatalog ?? null,
     apiWireApi: apiWireApi ?? null,
-    apiSupportsVision: apiSupportsVision ?? false,
-    apiModelVisionSupport: apiModelVisionSupport ?? {},
+    apiSupportsVision: apiSupportsVision ?? null,
+    apiModelVisionSupport: apiModelVisionSupport ?? null,
     apiVisionRoutingModel: apiVisionRoutingModel ?? null,
   });
 }
@@ -406,6 +442,9 @@ export async function updateCodexAccountTags(accountId: string, tags: string[]):
   return await invoke('update_codex_account_tags', { accountId, tags });
 }
 
-export async function updateCodexAccountNote(accountId: string, note: string): Promise<CodexAccount> {
-  return await invoke('update_codex_account_note', { accountId, note });
+export async function updateCodexAccountNote(
+  accountId: string,
+  update: CodexAccountNoteUpdate,
+): Promise<CodexAccount> {
+  return await invoke('update_codex_account_note', { accountId, ...update });
 }

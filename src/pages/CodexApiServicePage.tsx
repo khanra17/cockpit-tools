@@ -583,6 +583,7 @@ export function CodexApiServicePage() {
     useState<CodexLocalAccessUsageEventPage | null>(null);
   const [requestLogLoading, setRequestLogLoading] = useState(false);
   const [requestLogError, setRequestLogError] = useState("");
+  const [requestLogReloadToken, setRequestLogReloadToken] = useState(0);
   const [requestLogKindFilter, setRequestLogKindFilter] =
     useState<RequestLogKindFilter>("all");
   const [requestLogStatusFilter, setRequestLogStatusFilter] =
@@ -810,6 +811,7 @@ export function CodexApiServicePage() {
       };
     });
   }, [collection?.modelPricings, modelIds, state?.modelPricingPresets]);
+  const modelPricingVersion = Math.max(1, collection?.modelPricingVersion ?? 1);
   const avgLatency =
     totals && totals.requestCount > 0
       ? totals.totalLatencyMs / totals.requestCount
@@ -943,6 +945,7 @@ export function CodexApiServicePage() {
     requestLogAccountQuery,
     requestLogApiKeyQuery,
     requestLogErrorQuery,
+    requestLogReloadToken,
   ]);
 
   useEffect(() => {
@@ -1006,6 +1009,7 @@ export function CodexApiServicePage() {
     requestLogAccountQuery,
     requestLogApiKeyQuery,
     requestLogErrorQuery,
+    requestLogReloadToken,
     stats?.updatedAt,
   ]);
 
@@ -1823,6 +1827,27 @@ export function CodexApiServicePage() {
     );
   };
 
+  const handleRepriceRequestLogs = async () => {
+    setBusy(true);
+    setPricingError("");
+    try {
+      const next =
+        await codexLocalAccessService.repriceCodexLocalAccessRequestLogs();
+      setState(next);
+      setNotice(
+        t(
+          "codex.apiService.models.pricingRepriceSuccess",
+          "历史请求估值已按当前价格重算",
+        ),
+      );
+      setRequestLogReloadToken((value) => value + 1);
+    } catch (err) {
+      setPricingError(String(err).replace(/^Error:\s*/, ""));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleSaveRoutingOptions = async () => {
     const ttlSeconds = parseIntegerDraft(sessionAffinityTtlDraft, 60, 86400);
     if (ttlSeconds === null) {
@@ -2270,6 +2295,13 @@ export function CodexApiServicePage() {
     {
       value: "auto",
       label: t("codex.localAccess.routingStrategy.auto", "自动（推荐）"),
+    },
+    {
+      value: "single_account",
+      label: t(
+        "codex.localAccess.routingStrategy.singleAccount",
+        "固定首个账号",
+      ),
     },
     {
       value: "quota_high_first",
@@ -4823,6 +4855,32 @@ export function CodexApiServicePage() {
                     "单位为 USD / 1M tokens，仅用于本地价值统计。",
                   )}
                 </p>
+                <p className="codex-api-service-pricing-desc">
+                  {t("codex.apiService.models.pricingVersion", {
+                    version: modelPricingVersion,
+                    defaultValue: "当前价格版本 v{{version}}",
+                  })}
+                </p>
+                <div className="codex-api-service-pricing-reprice">
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => void handleRepriceRequestLogs()}
+                    disabled={busy}
+                  >
+                    <RefreshCw size={14} />
+                    {t(
+                      "codex.apiService.models.pricingRepriceHistory",
+                      "重算历史估值",
+                    )}
+                  </button>
+                  <span>
+                    {t(
+                      "codex.apiService.models.pricingRepriceHint",
+                      "按当前价格版本刷新请求日志和统计里的估算金额。",
+                    )}
+                  </span>
+                </div>
               </div>
               <button
                 type="button"

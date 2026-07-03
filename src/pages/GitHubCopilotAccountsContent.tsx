@@ -37,6 +37,7 @@ import { PaginationControls } from '../components/PaginationControls';
 import { buildGitHubCopilotAccountPresentation } from '../presentation/platformAccountPresentation';
 
 import { GitHubCopilotInstancesContent } from './GitHubCopilotInstancesPage';
+import { AccountSelectionToolbar } from '../components/AccountSelectionToolbar';
 import { QuickSettingsPopover } from '../components/QuickSettingsPopover';
 import { useProviderAccountsPage } from '../hooks/useProviderAccountsPage';
 import { MultiSelectFilterDropdown, type MultiSelectFilterOption } from '../components/MultiSelectFilterDropdown';
@@ -984,7 +985,18 @@ export function GitHubCopilotAccountsContent({
           >
             <Upload size={14} />
           </button>
-          {selected.size > 0 && (
+            <QuickSettingsPopover type="github_copilot" />
+        </div>
+      </div>
+
+      {filteredAccounts.length > 0 && (
+        <AccountSelectionToolbar
+          selectedCount={selected.size}
+          allSelected={isAllPaginatedSelected}
+          disabled={paginatedIds.length === 0}
+          onToggleSelectAll={() => toggleSelectAll(paginatedIds)}
+          onClearSelection={() => toggleSelectAll(Array.from(selected))}
+          actions={(
             <button
               className="btn btn-danger icon-only"
               onClick={handleBatchDelete}
@@ -994,9 +1006,8 @@ export function GitHubCopilotAccountsContent({
               <Trash2 size={14} />
             </button>
           )}
-            <QuickSettingsPopover type="github_copilot" />
-        </div>
-      </div>
+        />
+      )}
 
       {loading && accounts.length === 0 ? (
         <div className="loading-container">

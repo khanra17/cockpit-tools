@@ -29,6 +29,7 @@ import { ExportJsonModal } from '../components/ExportJsonModal';
 import { ModalErrorMessage } from '../components/ModalErrorMessage';
 import { MfaQuickCodeSelect } from '../components/MfaQuickCodeSelect';
 import { PaginationControls } from '../components/PaginationControls';
+import { AccountSelectionToolbar } from '../components/AccountSelectionToolbar';
 import { MultiSelectFilterDropdown, type MultiSelectFilterOption } from '../components/MultiSelectFilterDropdown';
 import { QuickSettingsPopover } from '../components/QuickSettingsPopover';
 import { SingleSelectFilterDropdown } from '../components/SingleSelectFilterDropdown';
@@ -1220,7 +1221,18 @@ export function ZedAccountsContent() {
           >
             <Upload size={14} />
           </button>
-          {selected.size > 0 && (
+          <QuickSettingsPopover type="zed" />
+        </div>
+      </div>
+
+      {filteredAccounts.length > 0 && (
+        <AccountSelectionToolbar
+          selectedCount={selected.size}
+          allSelected={isAllPaginatedSelected}
+          disabled={paginatedIds.length === 0}
+          onToggleSelectAll={() => toggleSelectAll(paginatedIds)}
+          onClearSelection={() => toggleSelectAll(Array.from(selected))}
+          actions={(
             <button
               className="btn btn-danger icon-only"
               onClick={handleBatchDelete}
@@ -1229,9 +1241,8 @@ export function ZedAccountsContent() {
               <Trash2 size={14} />
             </button>
           )}
-          <QuickSettingsPopover type="zed" />
-        </div>
-      </div>
+        />
+      )}
 
       {loading && accounts.length === 0 ? (
         <div className="loading-container">

@@ -225,7 +225,9 @@
     "deleteTagWarning": "Bu etiketi tüm hesaplardan silmek istediğinizden emin misiniz?",
     "expand": "Genişlet",
     "processing": "İşleniyor...",
-    "selectAll": "Tümünü Seç"
+    "selectAll": "Tümünü Seç",
+    "pause": "Duraklat",
+    "resume": "Sürdür"
   },
   "nav": {
     "overview": "Antigravity IDE​",
@@ -1051,7 +1053,9 @@
         "unresolvedRefs": "{{count}} hesap bağlantısı eşleştirilemedi ve atlandı",
         "disabledTasks": "Eşleşen hesap bulunamadığı için {{count}} görev devre dışı bırakıldı",
         "restartRequired": "Ağ hizmeti ayarları geri yüklendi. Bazı değişiklikler yeniden başlatmadan sonra etkili olur",
-        "partialAccountFailure": "Bazı hesaplar içe aktarılamadı: {{error}}"
+        "partialAccountFailure": "Bazı hesaplar içe aktarılamadı: {{error}}",
+        "codexSessionsImported": "{{imported}} Codex oturumu içe aktarıldı, {{skipped}} atlandı",
+        "codexSessionsMissingTargets": "{{count}} Codex kaynak örneğinin yerel hedefi yok"
       },
       "errors": {
         "selectionRequired": "En az bir veri türü seçin",
@@ -1987,6 +1991,7 @@
       "refreshStatsSuccess": "API hizmeti istatistikleri yenilendi",
       "routingStrategy": {
         "auto": "Otomatik (Önerilen)",
+        "singleAccount": "İlk hesabı sabitle",
         "quotaHighFirst": "Önce yüksek kota",
         "quotaLowFirst": "Önce düşük kota",
         "planHighFirst": "Önce yüksek plan",
@@ -2557,7 +2562,12 @@
         "instanceScopeAll": "Tüm örnekler",
         "instanceScopeAllDesc": "Çoklu örnek durumunu geri yüklerken tüm Codex örneklerini onarır.",
         "progressTitle": "Onarım ilerlemesi",
-        "start": "Onar"
+        "start": "Onar",
+        "previewing": "Önizleniyor...",
+        "previewAgain": "Tekrar önizle",
+        "preview": "Değişiklikleri önizle",
+        "previewFailedWithError": "Oturum onarımı önizlemesi başarısız: {{error}}",
+        "confirmRepair": "Onarımı onayla"
       }
     },
     "api": {
@@ -3001,8 +3011,29 @@
     "accountNote": {
       "title": "Hesap Notu",
       "label": "Hesap Notu",
-      "desc": "{{account}} için ayrı bir hesap notu ekleyin.",
-      "placeholder": "E-posta, parola, kurtarma e-postası veya teslim notları",
+      "desc": "{{account}} için 2FA, parola, telefon ve diğer notları ekleyin.",
+      "twoFactorSecretLabel": "2FA sırrı",
+      "twoFactorSecretShort": "2FA",
+      "twoFactorSecretPlaceholder": "Base32 sırrı veya otpauth:// URI",
+      "twoFactorSecretInvalid": "Geçersiz 2FA sırrı. Base32 sırrı veya otpauth:// URI girin.",
+      "currentOtp": "Geçerli kod",
+      "otpShort": "Kod",
+      "otpRemaining": "{{seconds}} sn",
+      "passwordLabel": "Parola",
+      "passwordShort": "Parola",
+      "passwordPlaceholder": "Giriş parolası veya geçici parola",
+      "phoneNumberLabel": "Telefon",
+      "phoneShort": "Telefon",
+      "phoneNumberPlaceholder": "Bağlı telefon numarası",
+      "otherNoteLabel": "Diğer notlar",
+      "otherNoteShort": "Not",
+      "placeholder": "Teslim notları, kurtarma e-postası veya hesap ayrıntıları",
+      "exportSensitiveNotice": "Dışa aktarım 2FA sırları, parolalar veya telefon numaraları içerir. Yalnızca güvenilir bir konuma kaydedin.",
+      "exportSensitiveIncluded": "Hassas notları dahil et",
+      "exportSensitiveExcluded": "Hassas notları hariç tut",
+      "exportSensitiveToggleHint": "Dışa aktarılan JSON'un 2FA sırlarını, parolaları ve telefon numaralarını içerip içermeyeceğini kontrol eder.",
+      "show": "Göster",
+      "hide": "Gizle",
       "emptyTitle": "Hesap notu ekle",
       "short": "Not",
       "addShort": "Ekle",
@@ -3097,7 +3128,11 @@
         "pricingUnset": "Ayarsız",
         "pricingReset": "Sıfırla",
         "pricingSaved": "Fiyatlar kaydedildi",
-        "pricingInvalid": "Fiyatlar 0 veya daha büyük sayılar olmalıdır"
+        "pricingInvalid": "Fiyatlar 0 veya daha büyük sayılar olmalıdır",
+        "pricingVersion": "Geçerli fiyat sürümü v{{version}}",
+        "pricingRepriceHistory": "Geçmişi yeniden hesapla",
+        "pricingRepriceHint": "İstek günlükleri ve istatistiklerdeki tahmini tutarları geçerli fiyat sürümüyle yeniler.",
+        "pricingRepriceSuccess": "Geçmiş istek tahminleri geçerli fiyatlarla yeniden hesaplandı"
       },
       "keys": {
         "policyTitle": "Model ilkesi",
@@ -3303,6 +3338,15 @@
       "debugReasonCode": "Neden kodu",
       "debugRemainingReferrals": "Kalan davetler",
       "debugAccountStructure": "Hesap yapısı"
+    },
+    "batchDelete": {
+      "title": "Codex toplu silme",
+      "running": "Siliniyor",
+      "paused": "Duraklatıldı",
+      "failed": "Kısmi hata",
+      "completed": "Silme tamamlandı",
+      "preparing": "Silme görevi hazırlanıyor...",
+      "retryFailed": "Hatalıları dene"
     }
   },
   "githubCopilot": {

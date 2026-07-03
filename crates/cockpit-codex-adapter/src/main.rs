@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::env;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -39,9 +40,159 @@ const CODEX_LOCAL_ACCESS_CHAT_TEST_STREAM_EVENT: &str = "codex-local-access-chat
 const CODEX_MODEL_PROVIDER_CHAT_TEST_PROGRESS_EVENT: &str = "codex://model-provider-test-progress";
 const CODEX_KEEPALIVE_FAILURE_BACKOFF_SECONDS: i64 = 15 * 60;
 const CODEX_KEEPALIVE_MAX_ACCOUNTS_PER_CYCLE: i32 = 3;
+const CODEX_BATCH_DELETE_JOBS_DIR: &str = "codex_batch_delete_jobs";
 
 static CODEX_KEEPALIVE_NEXT_ALLOWED: std::sync::LazyLock<Mutex<HashMap<String, i64>>> =
     std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+static CODEX_BATCH_DELETE_JOBS: std::sync::LazyLock<Mutex<HashMap<String, CodexBatchDeleteJob>>> =
+    std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CodexBatchDeleteJobStatus {
+    job_id: String,
+    status: String,
+    total: usize,
+    completed: usize,
+    failed: usize,
+    errors: Vec<CodexBatchDeleteError>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CodexBatchDeleteError {
+    account_id: String,
+    error: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CodexBatchDeleteJob {
+    status: String,
+    total: usize,
+    completed: usize,
+    failed: usize,
+    errors: Vec<CodexBatchDeleteError>,
+    account_ids: Vec<String>,
+    next_index: usize,
+    created_at: i64,
+    updated_at: i64,
+}
+
+fn get_codex_batch_delete_jobs_dir() -> PathBuf {
+    let data_dir = account::get_data_dir()
+        .or_else(|_| account::resolve_data_dir())
+        .unwrap_or_else(|_| PathBuf::from(".antigravity_cockpit"));
+    let dir = data_dir.join(CODEX_BATCH_DELETE_JOBS_DIR);
+    fs::create_dir_all(&dir).ok();
+    dir
+}
+
+fn sanitize_codex_batch_delete_job_id(job_id: &str) -> Result<String, String> {
+    let trimmed = job_id.trim();
+    if trimmed.is_empty() {
+        return Err("批量删除任务 ID 为空".to_string());
+    }
+    if !trimmed
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+    {
+        return Err("批量删除任务 ID 不合法".to_string());
+    }
+    Ok(trimmed.to_string())
+}
+
+fn codex_batch_delete_job_snapshot_path(job_id: &str) -> Result<PathBuf, String> {
+    let safe_id = sanitize_codex_batch_delete_job_id(job_id)?;
+    Ok(get_codex_batch_delete_jobs_dir().join(format!("{}.json", safe_id)))
+}
+
+fn save_codex_batch_delete_job_snapshot(
+    job_id: &str,
+    job: &CodexBatchDeleteJob,
+) -> Result<(), String> {
+    let path = codex_batch_delete_job_snapshot_path(job_id)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("创建批量删除任务目录失败: {}", error))?;
+    }
+    let content = serde_json::to_string_pretty(job)
+        .map_err(|error| format!("序列化批量删除任务失败: {}", error))?;
+    let tmp_path = path.with_extension("json.tmp");
+    fs::write(&tmp_path, content).map_err(|error| {
+        format!(
+            "写入批量删除任务快照失败: path={}, error={}",
+            tmp_path.display(),
+            error
+        )
+    })?;
+    fs::rename(&tmp_path, &path).map_err(|error| {
+        let _ = fs::remove_file(&tmp_path);
+        format!(
+            "更新批量删除任务快照失败: path={}, error={}",
+            path.display(),
+            error
+        )
+    })
+}
+
+fn save_codex_batch_delete_job_snapshot_best_effort(job_id: &str, job: &CodexBatchDeleteJob) {
+    if let Err(error) = save_codex_batch_delete_job_snapshot(job_id, job) {
+        logger::log_warn(&format!(
+            "[Codex Batch Delete] 保存任务快照失败: job_id={}, error={}",
+            job_id, error
+        ));
+    }
+}
+
+fn load_codex_batch_delete_job_snapshot(
+    job_id: &str,
+) -> Result<Option<CodexBatchDeleteJob>, String> {
+    let path = codex_batch_delete_job_snapshot_path(job_id)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let content = fs::read_to_string(&path).map_err(|error| {
+        format!(
+            "读取批量删除任务快照失败: path={}, error={}",
+            path.display(),
+            error
+        )
+    })?;
+    let mut job: CodexBatchDeleteJob = serde_json::from_str(&content).map_err(|error| {
+        format!(
+            "解析批量删除任务快照失败: path={}, error={}",
+            path.display(),
+            error
+        )
+    })?;
+    if job.status == "running" {
+        job.status = "paused".to_string();
+        job.updated_at = now_unix_seconds();
+    }
+    Ok(Some(job))
+}
+
+fn remove_codex_batch_delete_job_snapshot(job_id: &str) {
+    if let Ok(path) = codex_batch_delete_job_snapshot_path(job_id) {
+        let _ = fs::remove_file(path);
+    }
+}
+
+fn ensure_codex_batch_delete_job_loaded(job_id: &str) -> Result<(), String> {
+    {
+        let jobs = CODEX_BATCH_DELETE_JOBS.lock().unwrap();
+        if jobs.contains_key(job_id) {
+            return Ok(());
+        }
+    }
+    let Some(job) = load_codex_batch_delete_job_snapshot(job_id)? else {
+        return Err("批量删除任务不存在".to_string());
+    };
+    let mut jobs = CODEX_BATCH_DELETE_JOBS.lock().unwrap();
+    jobs.entry(job_id.to_string()).or_insert(job);
+    Ok(())
+}
 
 fn now_unix_seconds() -> i64 {
     SystemTime::now()
@@ -233,6 +384,12 @@ struct AccountIdsPayload {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct BatchDeleteJobPayload {
+    job_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct InstanceStorePayload {
     store: InstanceStore,
 }
@@ -259,9 +416,16 @@ struct SyncSessionsToInstancePayload {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct CodexSessionTransferImportPayload {
+    bundle: codex_thread_sync::CodexSessionTransferBundle,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RepairSessionVisibilityPayload {
     mode: Option<codex_session_visibility::CodexSessionVisibilityRepairMode>,
     run_id: Option<String>,
+    dry_run: Option<bool>,
     target_provider: Option<String>,
     target_instance_id: Option<String>,
     repair_instance_ids: Option<Vec<String>>,
@@ -728,7 +892,10 @@ struct TagsPayload {
 #[serde(rename_all = "camelCase")]
 struct NotePayload {
     account_id: String,
-    note: String,
+    note: Option<String>,
+    two_factor_secret: Option<String>,
+    account_password: Option<String>,
+    phone_number: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1810,6 +1977,7 @@ fn repair_session_visibility(
         resolved_target_provider,
         payload.session_ids,
         payload.repair_instance_ids,
+        payload.dry_run.unwrap_or(false),
     )?;
 
     if let Some(error) = event_error.lock().ok().and_then(|guard| guard.clone()) {
@@ -2365,10 +2533,10 @@ fn update_api_key_credentials(payload: ApiKeyCredentialsPayload) -> Result<Value
         payload.api_provider_mode,
         payload.api_provider_id,
         payload.api_provider_name,
-        payload.api_model_catalog.unwrap_or_default(),
+        payload.api_model_catalog,
         payload.api_wire_api,
-        payload.api_supports_vision.unwrap_or(false),
-        payload.api_model_vision_support.unwrap_or_default(),
+        payload.api_supports_vision,
+        payload.api_model_vision_support,
         payload.api_vision_routing_model,
     )?)
 }
@@ -2400,18 +2568,245 @@ fn update_local_access_bound_oauth_account(
 
 fn delete_account(runtime: &Runtime, account_id: String) -> Result<Value, String> {
     let account_ids = vec![account_id];
-    codex_account::remove_account(&account_ids[0])?;
-    runtime.block_on(
-        codex_local_access::remove_deleted_accounts_from_local_access_pool(&account_ids),
-    )?;
+    delete_account_ids(runtime, &account_ids)?;
     Ok(Value::Null)
 }
 
 fn delete_accounts(runtime: &Runtime, account_ids: Vec<String>) -> Result<Value, String> {
-    codex_account::remove_accounts(&account_ids)?;
+    delete_account_ids(runtime, &account_ids)?;
+    Ok(Value::Null)
+}
+
+fn delete_account_ids(runtime: &Runtime, account_ids: &[String]) -> Result<(), String> {
+    codex_account::remove_accounts(account_ids)?;
     runtime.block_on(
-        codex_local_access::remove_deleted_accounts_from_local_access_pool(&account_ids),
+        codex_local_access::remove_deleted_accounts_from_local_access_pool(account_ids),
     )?;
+    Ok(())
+}
+
+fn codex_batch_delete_status(job_id: &str, job: &CodexBatchDeleteJob) -> CodexBatchDeleteJobStatus {
+    CodexBatchDeleteJobStatus {
+        job_id: job_id.to_string(),
+        status: job.status.clone(),
+        total: job.total,
+        completed: job.completed,
+        failed: job.failed,
+        errors: job.errors.clone(),
+    }
+}
+
+fn get_codex_batch_delete_job_status(job_id: &str) -> Result<CodexBatchDeleteJobStatus, String> {
+    ensure_codex_batch_delete_job_loaded(job_id)?;
+    let jobs = CODEX_BATCH_DELETE_JOBS.lock().unwrap();
+    let job = jobs
+        .get(job_id)
+        .ok_or_else(|| "批量删除任务不存在".to_string())?;
+    Ok(codex_batch_delete_status(job_id, job))
+}
+
+async fn run_codex_batch_delete_job(job_id: String) {
+    loop {
+        let next_account_id = {
+            let mut jobs = CODEX_BATCH_DELETE_JOBS.lock().unwrap();
+            let Some(job) = jobs.get_mut(&job_id) else {
+                return;
+            };
+            if job.status == "paused" {
+                job.updated_at = now_unix_seconds();
+                let snapshot = job.clone();
+                drop(jobs);
+                save_codex_batch_delete_job_snapshot_best_effort(&job_id, &snapshot);
+                return;
+            }
+            if job.next_index >= job.account_ids.len() {
+                job.status = if job.failed > 0 {
+                    "failed".to_string()
+                } else {
+                    "completed".to_string()
+                };
+                job.updated_at = now_unix_seconds();
+                let snapshot = job.clone();
+                drop(jobs);
+                save_codex_batch_delete_job_snapshot_best_effort(&job_id, &snapshot);
+                return;
+            }
+            job.status = "running".to_string();
+            job.account_ids[job.next_index].clone()
+        };
+
+        let account_id_for_cleanup = next_account_id.clone();
+        let remove_result =
+            tokio::task::spawn_blocking(move || codex_account::remove_account(&next_account_id))
+                .await
+                .map_err(|error| format!("批量删除后台任务失败: {}", error))
+                .and_then(|result| result);
+        let result = match remove_result {
+            Ok(()) => {
+                codex_local_access::remove_deleted_accounts_from_local_access_pool(&[
+                    account_id_for_cleanup.clone(),
+                ])
+                .await
+            }
+            Err(error) => Err(error),
+        };
+
+        let snapshot = {
+            let mut jobs = CODEX_BATCH_DELETE_JOBS.lock().unwrap();
+            let Some(job) = jobs.get_mut(&job_id) else {
+                return;
+            };
+            job.completed = job.completed.saturating_add(1);
+            job.next_index = job.next_index.saturating_add(1);
+            job.updated_at = now_unix_seconds();
+            if let Err(error) = result {
+                job.failed = job.failed.saturating_add(1);
+                job.errors.push(CodexBatchDeleteError {
+                    account_id: account_id_for_cleanup,
+                    error,
+                });
+            }
+            job.clone()
+        };
+        save_codex_batch_delete_job_snapshot_best_effort(&job_id, &snapshot);
+    }
+}
+
+fn start_codex_batch_delete_job(
+    runtime: &Runtime,
+    account_ids: Vec<String>,
+) -> Result<Value, String> {
+    let normalized_ids: Vec<String> = account_ids
+        .into_iter()
+        .map(|id| id.trim().to_string())
+        .filter(|id| !id.is_empty())
+        .collect();
+    if normalized_ids.is_empty() {
+        return Ok(json!(CodexBatchDeleteJobStatus {
+            job_id: String::new(),
+            status: "completed".to_string(),
+            total: 0,
+            completed: 0,
+            failed: 0,
+            errors: Vec::new(),
+        }));
+    }
+
+    let job_id = format!("codex-delete-{}", Uuid::new_v4());
+    let now = now_unix_seconds();
+    let job = CodexBatchDeleteJob {
+        status: "running".to_string(),
+        total: normalized_ids.len(),
+        completed: 0,
+        failed: 0,
+        errors: Vec::new(),
+        account_ids: normalized_ids,
+        next_index: 0,
+        created_at: now,
+        updated_at: now,
+    };
+    save_codex_batch_delete_job_snapshot(&job_id, &job)?;
+    {
+        let mut jobs = CODEX_BATCH_DELETE_JOBS.lock().unwrap();
+        jobs.insert(job_id.clone(), job);
+    }
+    let task_job_id = job_id.clone();
+    runtime.handle().spawn(async move {
+        run_codex_batch_delete_job(task_job_id).await;
+    });
+
+    to_value(get_codex_batch_delete_job_status(&job_id)?)
+}
+
+fn resume_codex_batch_delete_job(runtime: &Runtime, job_id: &str) -> Result<Value, String> {
+    ensure_codex_batch_delete_job_loaded(job_id)?;
+    let should_spawn = {
+        let mut jobs = CODEX_BATCH_DELETE_JOBS.lock().unwrap();
+        let job = jobs
+            .get_mut(job_id)
+            .ok_or_else(|| "批量删除任务不存在".to_string())?;
+        if matches!(job.status.as_str(), "completed" | "failed") {
+            return to_value(codex_batch_delete_status(job_id, job));
+        }
+        if job.status == "running" {
+            return to_value(codex_batch_delete_status(job_id, job));
+        }
+        job.status = "running".to_string();
+        job.updated_at = now_unix_seconds();
+        save_codex_batch_delete_job_snapshot_best_effort(job_id, job);
+        true
+    };
+    if should_spawn {
+        let task_job_id = job_id.to_string();
+        runtime.handle().spawn(async move {
+            run_codex_batch_delete_job(task_job_id).await;
+        });
+    }
+    to_value(get_codex_batch_delete_job_status(job_id)?)
+}
+
+fn pause_codex_batch_delete_job(job_id: &str) -> Result<Value, String> {
+    ensure_codex_batch_delete_job_loaded(job_id)?;
+    let snapshot = {
+        let mut jobs = CODEX_BATCH_DELETE_JOBS.lock().unwrap();
+        let job = jobs
+            .get_mut(job_id)
+            .ok_or_else(|| "批量删除任务不存在".to_string())?;
+        if job.status == "running" {
+            job.status = "paused".to_string();
+            job.updated_at = now_unix_seconds();
+        }
+        job.clone()
+    };
+    save_codex_batch_delete_job_snapshot_best_effort(job_id, &snapshot);
+    to_value(codex_batch_delete_status(job_id, &snapshot))
+}
+
+fn retry_failed_codex_batch_delete_job(runtime: &Runtime, job_id: &str) -> Result<Value, String> {
+    ensure_codex_batch_delete_job_loaded(job_id)?;
+    let should_spawn = {
+        let mut jobs = CODEX_BATCH_DELETE_JOBS.lock().unwrap();
+        let job = jobs
+            .get_mut(job_id)
+            .ok_or_else(|| "批量删除任务不存在".to_string())?;
+        if job.status == "running" {
+            return to_value(codex_batch_delete_status(job_id, job));
+        }
+        if job.errors.is_empty() {
+            return to_value(codex_batch_delete_status(job_id, job));
+        }
+        let mut retry_ids = Vec::new();
+        for error in &job.errors {
+            if !retry_ids.contains(&error.account_id) {
+                retry_ids.push(error.account_id.clone());
+            }
+        }
+        job.account_ids = retry_ids.clone();
+        job.total = retry_ids.len();
+        job.completed = 0;
+        job.failed = 0;
+        job.errors = Vec::new();
+        job.next_index = 0;
+        job.status = "running".to_string();
+        job.updated_at = now_unix_seconds();
+        save_codex_batch_delete_job_snapshot_best_effort(job_id, job);
+        !retry_ids.is_empty()
+    };
+    if should_spawn {
+        let task_job_id = job_id.to_string();
+        runtime.handle().spawn(async move {
+            run_codex_batch_delete_job(task_job_id).await;
+        });
+    }
+    to_value(get_codex_batch_delete_job_status(job_id)?)
+}
+
+fn clear_codex_batch_delete_job(job_id: &str) -> Result<Value, String> {
+    {
+        let mut jobs = CODEX_BATCH_DELETE_JOBS.lock().unwrap();
+        jobs.remove(job_id);
+    }
+    remove_codex_batch_delete_job_snapshot(job_id);
     Ok(Value::Null)
 }
 
@@ -2877,6 +3272,30 @@ fn handle_rpc(runtime: &Runtime, request: RpcRequest) -> Result<Value, String> {
             let payload: AccountIdsPayload = parse_payload(request.payload)?;
             delete_accounts(runtime, payload.account_ids)
         }
+        "accounts.batchDelete.start" => {
+            let payload: AccountIdsPayload = parse_payload(request.payload)?;
+            start_codex_batch_delete_job(runtime, payload.account_ids)
+        }
+        "accounts.batchDelete.get" => {
+            let payload: BatchDeleteJobPayload = parse_payload(request.payload)?;
+            to_value(get_codex_batch_delete_job_status(&payload.job_id)?)
+        }
+        "accounts.batchDelete.resume" => {
+            let payload: BatchDeleteJobPayload = parse_payload(request.payload)?;
+            resume_codex_batch_delete_job(runtime, &payload.job_id)
+        }
+        "accounts.batchDelete.pause" => {
+            let payload: BatchDeleteJobPayload = parse_payload(request.payload)?;
+            pause_codex_batch_delete_job(&payload.job_id)
+        }
+        "accounts.batchDelete.retryFailed" => {
+            let payload: BatchDeleteJobPayload = parse_payload(request.payload)?;
+            retry_failed_codex_batch_delete_job(runtime, &payload.job_id)
+        }
+        "accounts.batchDelete.clear" => {
+            let payload: BatchDeleteJobPayload = parse_payload(request.payload)?;
+            clear_codex_batch_delete_job(&payload.job_id)
+        }
         "accounts.addToken" => {
             let payload: TokenAccountPayload = parse_payload(request.payload)?;
             add_token_account(runtime, payload)
@@ -2911,7 +3330,12 @@ fn handle_rpc(runtime: &Runtime, request: RpcRequest) -> Result<Value, String> {
             let payload: NotePayload = parse_payload(request.payload)?;
             to_value(codex_account::update_account_note(
                 &payload.account_id,
-                payload.note,
+                codex_account::CodexAccountNoteUpdate {
+                    note: payload.note,
+                    two_factor_secret: payload.two_factor_secret,
+                    account_password: payload.account_password,
+                    phone_number: payload.phone_number,
+                },
             )?)
         }
         "accounts.keepaliveDue" => to_value(keepalive_due_codex_accounts(runtime)?),
@@ -3145,6 +3569,9 @@ fn handle_rpc(runtime: &Runtime, request: RpcRequest) -> Result<Value, String> {
                     payload.model_pricings,
                 ))?,
             )
+        }
+        "localAccess.repriceRequestLogs" => {
+            to_value(runtime.block_on(codex_local_access::reprice_local_access_request_logs())?)
         }
         "localAccess.updateRoutingOptions" => {
             let payload: LocalAccessRoutingOptionsPayload = parse_payload(request.payload)?;
@@ -3380,6 +3807,15 @@ fn handle_rpc(runtime: &Runtime, request: RpcRequest) -> Result<Value, String> {
             to_value(codex_thread_sync::sync_sessions_to_instance(
                 payload.session_ids,
                 payload.target_instance_id,
+            )?)
+        }
+        "sessions.transfer.export" => {
+            to_value(codex_thread_sync::export_session_transfer_bundle()?)
+        }
+        "sessions.transfer.import" => {
+            let payload: CodexSessionTransferImportPayload = parse_payload(request.payload)?;
+            to_value(codex_thread_sync::import_session_transfer_bundle(
+                payload.bundle,
             )?)
         }
         "sessions.visibilityRepairProviders.list" => {

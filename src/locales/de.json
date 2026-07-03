@@ -225,7 +225,9 @@
     "deleteTagWarning": "Möchten Sie dieses Tag wirklich von allen Konten entfernen?",
     "expand": "Erweitern",
     "processing": "Verarbeitung...",
-    "selectAll": "Alle auswählen"
+    "selectAll": "Alle auswählen",
+    "pause": "Pausieren",
+    "resume": "Fortsetzen"
   },
   "nav": {
     "overview": "Antigravity IDE​",
@@ -1051,7 +1053,9 @@
         "unresolvedRefs": "{{count}} Kontozuordnungen konnten nicht aufgelöst werden und wurden übersprungen",
         "disabledTasks": "{{count}} Aufgaben wurden deaktiviert, weil kein Konto zugeordnet werden konnte",
         "restartRequired": "Netzwerkdiensteinstellungen wurden wiederhergestellt. Einige Änderungen werden erst nach einem Neustart wirksam",
-        "partialAccountFailure": "Einige Kontoimporte sind fehlgeschlagen: {{error}}"
+        "partialAccountFailure": "Einige Kontoimporte sind fehlgeschlagen: {{error}}",
+        "codexSessionsImported": "{{imported}} Codex-Sitzungen importiert, {{skipped}} übersprungen",
+        "codexSessionsMissingTargets": "{{count}} Codex-Quellinstanzen haben kein lokales Ziel"
       },
       "errors": {
         "selectionRequired": "Wählen Sie mindestens einen Datentyp aus",
@@ -1987,6 +1991,7 @@
       "refreshStatsSuccess": "API-Service-Statistiken wurden aktualisiert",
       "routingStrategy": {
         "auto": "Automatisch (empfohlen)",
+        "singleAccount": "Erstes Konto fest",
         "quotaHighFirst": "Hohe Quote zuerst",
         "quotaLowFirst": "Niedrige Quote zuerst",
         "planHighFirst": "Hohes Abo zuerst",
@@ -2557,7 +2562,12 @@
         "instanceScopeAll": "Alle Instanzen",
         "instanceScopeAllDesc": "Repariert alle Codex-Instanzen bei gemeinsamer Wiederherstellung.",
         "progressTitle": "Reparaturfortschritt",
-        "start": "Reparatur starten"
+        "start": "Reparatur starten",
+        "previewing": "Vorschau läuft...",
+        "previewAgain": "Erneut prüfen",
+        "preview": "Änderungen prüfen",
+        "previewFailedWithError": "Vorschau der Sitzungsreparatur fehlgeschlagen: {{error}}",
+        "confirmRepair": "Reparatur bestätigen"
       }
     },
     "api": {
@@ -3001,8 +3011,29 @@
     "accountNote": {
       "title": "Kontonotiz",
       "label": "Kontonotiz",
-      "desc": "Fügen Sie eine separate Kontonotiz für {{account}} hinzu.",
-      "placeholder": "E-Mail, Passwort, Wiederherstellungs-E-Mail oder Lieferhinweise",
+      "desc": "2FA, Passwort, Telefon und weitere Notizen für {{account}} hinzufügen.",
+      "twoFactorSecretLabel": "2FA-Secret",
+      "twoFactorSecretShort": "2FA",
+      "twoFactorSecretPlaceholder": "Base32-Secret oder otpauth://-URI",
+      "twoFactorSecretInvalid": "Ungültiges 2FA-Secret. Bitte Base32-Secret oder otpauth://-URI eingeben.",
+      "currentOtp": "Aktueller Code",
+      "otpShort": "Einmalcode",
+      "otpRemaining": "{{seconds}} s",
+      "passwordLabel": "Passwort",
+      "passwordShort": "Passwort",
+      "passwordPlaceholder": "Login- oder temporäres Passwort",
+      "phoneNumberLabel": "Telefon",
+      "phoneShort": "Telefon",
+      "phoneNumberPlaceholder": "Verknüpfte Telefonnummer",
+      "otherNoteLabel": "Weitere Notizen",
+      "otherNoteShort": "Notiz",
+      "placeholder": "Lieferhinweise, Wiederherstellungs-E-Mail oder Kontodetails",
+      "exportSensitiveNotice": "Der Export enthält 2FA-Secrets, Passwörter oder Telefonnummern. Nur an einem vertrauenswürdigen Ort speichern.",
+      "exportSensitiveIncluded": "Sensible Notizen einschließen",
+      "exportSensitiveExcluded": "Sensible Notizen ausschließen",
+      "exportSensitiveToggleHint": "Legt fest, ob der exportierte JSON 2FA-Secrets, Passwörter und Telefonnummern enthält.",
+      "show": "Anzeigen",
+      "hide": "Ausblenden",
       "emptyTitle": "Kontonotiz hinzufügen",
       "short": "Notiz",
       "addShort": "Notiz",
@@ -3097,7 +3128,11 @@
         "pricingUnset": "Nicht gesetzt",
         "pricingReset": "Zurücksetzen",
         "pricingSaved": "Preise gespeichert",
-        "pricingInvalid": "Preise müssen Zahlen größer oder gleich 0 sein"
+        "pricingInvalid": "Preise müssen Zahlen größer oder gleich 0 sein",
+        "pricingVersion": "Aktuelle Preisversion v{{version}}",
+        "pricingRepriceHistory": "Verlauf neu bewerten",
+        "pricingRepriceHint": "Aktualisiert Schätzbeträge in Anfragelogs und Statistiken mit der aktuellen Preisversion.",
+        "pricingRepriceSuccess": "Historische Anfragewerte wurden mit den aktuellen Preisen neu berechnet"
       },
       "keys": {
         "policyTitle": "Modellrichtlinie",
@@ -3303,6 +3338,15 @@
       "debugReasonCode": "Grundcode",
       "debugRemainingReferrals": "Verbleibende Einladungen",
       "debugAccountStructure": "Kontostruktur"
+    },
+    "batchDelete": {
+      "title": "Codex-Massenlöschung",
+      "running": "Wird gelöscht",
+      "paused": "Pausiert",
+      "failed": "Teilweise fehlgeschlagen",
+      "completed": "Löschen abgeschlossen",
+      "preparing": "Löschaufgabe wird vorbereitet...",
+      "retryFailed": "Fehler wiederholen"
     }
   },
   "githubCopilot": {

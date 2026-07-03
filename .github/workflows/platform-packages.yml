@@ -16,6 +16,11 @@ on:
         required: false
         default: false
         type: boolean
+      platforms:
+        description: "Comma-separated platform package ids to build/publish. Empty builds every platform package."
+        required: false
+        default: ""
+        type: string
       reset_history:
         description: "Publish the generated index as a fresh public history without carrying old platform package history"
         required: false
@@ -78,6 +83,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
+    env:
+      PLATFORM_PACKAGES: ${{ github.event_name == 'workflow_dispatch' && inputs.platforms || '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -153,7 +160,7 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      - name: Build all platform remote UIs
+      - name: Build selected platform remote UIs
         shell: bash
         run: |
           set -euo pipefail
@@ -161,6 +168,23 @@ jobs:
           const { execFileSync } = require('node:child_process');
           const fs = require('node:fs');
           const path = require('node:path');
+
+          function selectedPlatformIds() {
+            return new Set(String(process.env.PLATFORM_PACKAGES || '')
+              .split(',')
+              .map((item) => item.trim())
+              .filter(Boolean));
+          }
+
+          function filterSelectedPackages(packages) {
+            const selected = selectedPlatformIds();
+            if (selected.size === 0) return packages;
+            const available = new Set(packages.map((pkg) => pkg.id));
+            for (const id of selected) {
+              if (!available.has(id)) throw new Error(`Unknown platform package id: ${id}`);
+            }
+            return packages.filter((pkg) => selected.has(pkg.id));
+          }
 
           function loadPlatformPackages() {
             const index = JSON.parse(fs.readFileSync('platform-packages/index.json', 'utf8'));
@@ -184,7 +208,7 @@ jobs:
             for (const manifest of manifestsById.values()) {
               packages.push(manifest);
             }
-            return packages.filter((pkg) => pkg.packageMode === 'hotUpdate');
+            return filterSelectedPackages(packages.filter((pkg) => pkg.packageMode === 'hotUpdate'));
           }
 
           for (const pkg of loadPlatformPackages()) {
@@ -207,6 +231,23 @@ jobs:
             ['claude_manager', 'cockpit-claude-adapter'],
           ]);
 
+          function selectedPlatformIds() {
+            return new Set(String(process.env.PLATFORM_PACKAGES || '')
+              .split(',')
+              .map((item) => item.trim())
+              .filter(Boolean));
+          }
+
+          function filterSelectedPackages(packages) {
+            const selected = selectedPlatformIds();
+            if (selected.size === 0) return packages;
+            const available = new Set(packages.map((pkg) => pkg.id));
+            for (const id of selected) {
+              if (!available.has(id)) throw new Error(`Unknown platform package id: ${id}`);
+            }
+            return packages.filter((pkg) => selected.has(pkg.id));
+          }
+
           function loadPlatformPackages() {
             const index = JSON.parse(fs.readFileSync('platform-packages/index.json', 'utf8'));
             const packageRoot = 'platform-packages';
@@ -229,7 +270,7 @@ jobs:
             for (const manifest of manifestsById.values()) {
               packages.push(manifest);
             }
-            return packages.filter((pkg) => pkg.packageMode === 'hotUpdate');
+            return filterSelectedPackages(packages.filter((pkg) => pkg.packageMode === 'hotUpdate'));
           }
 
           for (const pkg of loadPlatformPackages()) {
@@ -250,6 +291,15 @@ jobs:
           const { execFileSync } = require('node:child_process');
           const fs = require('node:fs');
           const path = require('node:path');
+
+          const selected = new Set(String(process.env.PLATFORM_PACKAGES || '')
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean));
+          if (selected.size > 0 && !selected.has('codex')) {
+            console.log(`Skipping Codex helper sidecar for selected platform packages: ${[...selected].join(', ')}`);
+            process.exit(0);
+          }
 
           const os = process.env.PACKAGE_OS;
           const arch = process.env.PACKAGE_ARCH;
@@ -313,6 +363,23 @@ jobs:
           const fs = require('node:fs');
           const path = require('node:path');
 
+          function selectedPlatformIds() {
+            return new Set(String(process.env.PLATFORM_PACKAGES || '')
+              .split(',')
+              .map((item) => item.trim())
+              .filter(Boolean));
+          }
+
+          function filterSelectedPackages(packages) {
+            const selected = selectedPlatformIds();
+            if (selected.size === 0) return packages;
+            const available = new Set(packages.map((pkg) => pkg.id));
+            for (const id of selected) {
+              if (!available.has(id)) throw new Error(`Unknown platform package id: ${id}`);
+            }
+            return packages.filter((pkg) => selected.has(pkg.id));
+          }
+
           function loadPlatformPackages() {
             const index = JSON.parse(fs.readFileSync('platform-packages/index.json', 'utf8'));
             const packageRoot = 'platform-packages';
@@ -335,7 +402,7 @@ jobs:
             for (const manifest of manifestsById.values()) {
               packages.push(manifest);
             }
-            return packages.filter((pkg) => pkg.packageMode === 'hotUpdate');
+            return filterSelectedPackages(packages.filter((pkg) => pkg.packageMode === 'hotUpdate'));
           }
 
           for (const pkg of loadPlatformPackages()) {
@@ -377,6 +444,7 @@ jobs:
       RESET_HISTORY: ${{ github.event_name == 'workflow_dispatch' && inputs.reset_history || false }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       MAIN_PLATFORM_RELEASE_TAG: platform-packages-main
+      PLATFORM_PACKAGES: ${{ github.event_name == 'workflow_dispatch' && inputs.platforms || '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -408,6 +476,9 @@ jobs:
             if [ "${RESET_HISTORY}" != "true" ]; then
               args+=(--history-dir platform-packages/history)
             fi
+          fi
+          if [ -n "${PLATFORM_PACKAGES}" ]; then
+            args+=(--platforms "${PLATFORM_PACKAGES}")
           fi
           npm run package:platform-index -- "${args[@]}"
 

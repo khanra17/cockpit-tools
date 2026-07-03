@@ -225,7 +225,9 @@
     "deleteTagWarning": "Apakah Anda yakin ingin menghapus tag ini dari semua akun?",
     "expand": "Perluas",
     "processing": "Memproses...",
-    "selectAll": "Pilih Semua"
+    "selectAll": "Pilih Semua",
+    "pause": "Jeda",
+    "resume": "Lanjutkan"
   },
   "floatingCard": {
     "selectPlatform": "Ganti platform",
@@ -1097,7 +1099,9 @@
         "unresolvedRefs": "{{count}} keterkaitan akun tidak dapat dicocokkan dan dilewati",
         "disabledTasks": "{{count}} tugas dinonaktifkan karena tidak ada akun yang cocok",
         "restartRequired": "Pengaturan layanan jaringan telah dipulihkan. Sebagian perubahan berlaku setelah restart",
-        "partialAccountFailure": "Sebagian impor akun gagal: {{error}}"
+        "partialAccountFailure": "Sebagian impor akun gagal: {{error}}",
+        "codexSessionsImported": "{{imported}} sesi Codex diimpor, {{skipped}} dilewati",
+        "codexSessionsMissingTargets": "{{count}} instance sumber Codex tidak punya target lokal"
       },
       "errors": {
         "selectionRequired": "Pilih setidaknya satu jenis data",
@@ -2036,6 +2040,7 @@
       "refreshStatsSuccess": "Statistik layanan API telah disegarkan",
       "routingStrategy": {
         "auto": "Otomatis (Disarankan)",
+        "singleAccount": "Tetapkan akun pertama",
         "quotaHighFirst": "Kuota Tinggi Dulu",
         "quotaLowFirst": "Kuota Rendah Dulu",
         "planHighFirst": "Paket Tinggi Dulu",
@@ -2720,7 +2725,12 @@
         "instanceScopeAll": "Semua instans",
         "instanceScopeAllDesc": "Memperbaiki semua instans Codex saat pemulihan bersama.",
         "progressTitle": "Progres perbaikan",
-        "start": "Perbaiki"
+        "start": "Perbaiki",
+        "previewing": "Mempratinjau...",
+        "previewAgain": "Pratinjau ulang",
+        "preview": "Pratinjau perubahan",
+        "previewFailedWithError": "Gagal mempratinjau perbaikan sesi: {{error}}",
+        "confirmRepair": "Konfirmasi perbaikan"
       }
     },
     "modelProviders": {
@@ -3047,8 +3057,29 @@
     "accountNote": {
       "title": "Catatan Akun",
       "label": "Catatan Akun",
-      "desc": "Tambahkan catatan akun terpisah untuk {{account}}.",
-      "placeholder": "Email, kata sandi, email pemulihan, atau catatan pengiriman",
+      "desc": "Tambahkan 2FA, kata sandi, telepon, dan catatan lain untuk {{account}}.",
+      "twoFactorSecretLabel": "Rahasia 2FA",
+      "twoFactorSecretShort": "2FA",
+      "twoFactorSecretPlaceholder": "Rahasia Base32 atau URI otpauth://",
+      "twoFactorSecretInvalid": "Rahasia 2FA tidak valid. Masukkan rahasia Base32 atau URI otpauth://.",
+      "currentOtp": "Kode saat ini",
+      "otpShort": "Kode",
+      "otpRemaining": "{{seconds}} dtk",
+      "passwordLabel": "Kata sandi",
+      "passwordShort": "Sandi",
+      "passwordPlaceholder": "Kata sandi login atau sementara",
+      "phoneNumberLabel": "Telepon",
+      "phoneShort": "Telepon",
+      "phoneNumberPlaceholder": "Nomor telepon tertaut",
+      "otherNoteLabel": "Catatan lain",
+      "otherNoteShort": "Catatan",
+      "placeholder": "Catatan pengiriman, email pemulihan, atau detail akun",
+      "exportSensitiveNotice": "Ekspor berisi rahasia 2FA, kata sandi, atau nomor telepon. Simpan hanya di lokasi tepercaya.",
+      "exportSensitiveIncluded": "Sertakan catatan sensitif",
+      "exportSensitiveExcluded": "Kecualikan catatan sensitif",
+      "exportSensitiveToggleHint": "Mengatur apakah JSON ekspor menyertakan rahasia 2FA, kata sandi, dan nomor telepon.",
+      "show": "Tampilkan",
+      "hide": "Sembunyikan",
       "emptyTitle": "Tambah catatan akun",
       "short": "Catatan",
       "addShort": "Tambah",
@@ -3143,7 +3174,11 @@
         "pricingUnset": "Belum diatur",
         "pricingReset": "Atur ulang",
         "pricingSaved": "Harga tersimpan",
-        "pricingInvalid": "Harga harus berupa angka lebih besar atau sama dengan 0"
+        "pricingInvalid": "Harga harus berupa angka lebih besar atau sama dengan 0",
+        "pricingVersion": "Versi harga saat ini v{{version}}",
+        "pricingRepriceHistory": "Hitung ulang riwayat",
+        "pricingRepriceHint": "Menyegarkan estimasi biaya di log permintaan dan statistik memakai versi harga saat ini.",
+        "pricingRepriceSuccess": "Estimasi permintaan historis telah dihitung ulang dengan harga saat ini"
       },
       "keys": {
         "policyTitle": "Kebijakan Model",
@@ -3349,6 +3384,15 @@
       "debugReasonCode": "Kode alasan",
       "debugRemainingReferrals": "Sisa undangan",
       "debugAccountStructure": "Struktur akun"
+    },
+    "batchDelete": {
+      "title": "Hapus massal Codex",
+      "running": "Menghapus",
+      "paused": "Dijeda",
+      "failed": "Gagal sebagian",
+      "completed": "Penghapusan selesai",
+      "preparing": "Menyiapkan tugas hapus...",
+      "retryFailed": "Coba ulang gagal"
     }
   },
   "codebuddy": {

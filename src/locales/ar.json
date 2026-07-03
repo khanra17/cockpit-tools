@@ -225,7 +225,9 @@
     "deleteTagWarning": "هل أنت متأكد من حذف هذا الوسم من جميع الحسابات؟",
     "expand": "توسيع",
     "processing": "جارٍ المعالجة...",
-    "selectAll": "تحديد الكل"
+    "selectAll": "تحديد الكل",
+    "pause": "إيقاف مؤقت",
+    "resume": "متابعة"
   },
   "floatingCard": {
     "selectPlatform": "تبديل المنصة",
@@ -1097,7 +1099,9 @@
         "unresolvedRefs": "تعذّر مطابقة {{count}} من روابط الحسابات وتم تجاوزها",
         "disabledTasks": "تم تعطيل {{count}} مهمة لعدم إمكانية مطابقة حساب",
         "restartRequired": "تمت استعادة إعدادات خدمة الشبكة. ستسري بعض التغييرات بعد إعادة التشغيل",
-        "partialAccountFailure": "فشل استيراد بعض الحسابات: {{error}}"
+        "partialAccountFailure": "فشل استيراد بعض الحسابات: {{error}}",
+        "codexSessionsImported": "تم استيراد {{imported}} جلسات Codex وتخطي {{skipped}}",
+        "codexSessionsMissingTargets": "{{count}} مثيلات مصدر Codex بلا هدف محلي"
       },
       "errors": {
         "selectionRequired": "اختر نوع بيانات واحدًا على الأقل",
@@ -2033,6 +2037,7 @@
       "refreshStatsSuccess": "تم تحديث إحصاءات خدمة API",
       "routingStrategy": {
         "auto": "تلقائي (موصى به)",
+        "singleAccount": "تثبيت الحساب الأول",
         "quotaHighFirst": "الأعلى حصة أولاً",
         "quotaLowFirst": "الأقل حصة أولاً",
         "planHighFirst": "الأعلى باقة أولاً",
@@ -2603,7 +2608,12 @@
         "instanceScopeAll": "كل المثيلات",
         "instanceScopeAllDesc": "إصلاح كل مثيلات Codex عند استعادة عدة مثيلات.",
         "progressTitle": "تقدم الإصلاح",
-        "start": "إصلاح"
+        "start": "إصلاح",
+        "previewing": "جارٍ المعاينة...",
+        "previewAgain": "إعادة المعاينة",
+        "preview": "معاينة التغييرات",
+        "previewFailedWithError": "فشلت معاينة إصلاح الجلسة: {{error}}",
+        "confirmRepair": "تأكيد الإصلاح"
       }
     },
     "api": {
@@ -3047,8 +3057,29 @@
     "accountNote": {
       "title": "ملاحظة الحساب",
       "label": "ملاحظة الحساب",
-      "desc": "أضف ملاحظة حساب مستقلة لـ {{account}}.",
-      "placeholder": "البريد، كلمة المرور، بريد الاسترداد أو ملاحظات التسليم",
+      "desc": "أضف 2FA وكلمة المرور والهاتف وملاحظات أخرى لـ {{account}}.",
+      "twoFactorSecretLabel": "سر 2FA",
+      "twoFactorSecretShort": "2FA",
+      "twoFactorSecretPlaceholder": "سر Base32 أو رابط otpauth://",
+      "twoFactorSecretInvalid": "سر 2FA غير صالح. أدخل سر Base32 أو رابط otpauth://.",
+      "currentOtp": "الرمز الحالي",
+      "otpShort": "الرمز",
+      "otpRemaining": "{{seconds}} ث",
+      "passwordLabel": "كلمة المرور",
+      "passwordShort": "كلمة المرور",
+      "passwordPlaceholder": "كلمة مرور تسجيل الدخول أو كلمة مؤقتة",
+      "phoneNumberLabel": "الهاتف",
+      "phoneShort": "هاتف",
+      "phoneNumberPlaceholder": "رقم الهاتف المرتبط",
+      "otherNoteLabel": "ملاحظات أخرى",
+      "otherNoteShort": "ملاحظة",
+      "placeholder": "ملاحظات التسليم أو بريد الاسترداد أو تفاصيل الحساب",
+      "exportSensitiveNotice": "يتضمن التصدير أسرار 2FA أو كلمات مرور أو أرقام هاتف. احفظه في مكان موثوق فقط.",
+      "exportSensitiveIncluded": "تضمين الملاحظات الحساسة",
+      "exportSensitiveExcluded": "استبعاد الملاحظات الحساسة",
+      "exportSensitiveToggleHint": "حدد ما إذا كان JSON المصدر يتضمن أسرار 2FA وكلمات المرور وأرقام الهاتف.",
+      "show": "إظهار",
+      "hide": "إخفاء",
       "emptyTitle": "إضافة ملاحظة حساب",
       "short": "ملاحظة",
       "addShort": "أضف ملاحظة",
@@ -3143,7 +3174,11 @@
         "pricingUnset": "غير معين",
         "pricingReset": "إعادة ضبط",
         "pricingSaved": "تم حفظ التسعير",
-        "pricingInvalid": "يجب أن تكون الأسعار أرقامًا أكبر من أو تساوي 0"
+        "pricingInvalid": "يجب أن تكون الأسعار أرقامًا أكبر من أو تساوي 0",
+        "pricingVersion": "إصدار الأسعار الحالي v{{version}}",
+        "pricingRepriceHistory": "إعادة تسعير السجل",
+        "pricingRepriceHint": "يحدّث المبالغ المقدّرة في سجلات الطلبات والإحصاءات وفق إصدار الأسعار الحالي.",
+        "pricingRepriceSuccess": "أُعيد حساب تقديرات الطلبات السابقة بالأسعار الحالية"
       },
       "keys": {
         "policyTitle": "سياسة النماذج",
@@ -3349,6 +3384,15 @@
       "debugReasonCode": "رمز السبب",
       "debugRemainingReferrals": "الدعوات المتبقية",
       "debugAccountStructure": "بنية الحساب"
+    },
+    "batchDelete": {
+      "title": "حذف Codex دفعة واحدة",
+      "running": "جارٍ الحذف",
+      "paused": "متوقف مؤقتًا",
+      "failed": "فشل جزئي",
+      "completed": "اكتمل الحذف",
+      "preparing": "جارٍ تحضير مهمة الحذف...",
+      "retryFailed": "إعادة الفاشلة"
     }
   },
   "githubCopilot": {

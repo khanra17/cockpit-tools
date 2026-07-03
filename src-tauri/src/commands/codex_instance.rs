@@ -146,6 +146,7 @@ pub async fn codex_sync_sessions_to_instance(
 pub async fn codex_repair_session_visibility_across_instances(
     mode: Option<CodexSessionVisibilityRepairMode>,
     run_id: Option<String>,
+    dry_run: Option<bool>,
     target_provider: Option<String>,
     target_instance_id: Option<String>,
     repair_instance_ids: Option<Vec<String>>,
@@ -156,6 +157,7 @@ pub async fn codex_repair_session_visibility_across_instances(
         serde_json::json!({
             "mode": mode,
             "runId": run_id,
+            "dryRun": dry_run,
             "targetProvider": target_provider,
             "targetInstanceId": target_instance_id,
             "repairInstanceIds": repair_instance_ids,

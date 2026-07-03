@@ -1,9 +1,9 @@
 {
   "id": "codex",
   "platformId": "codex",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "apiVersion": 1,
-  "minCoreVersion": "1.0.0",
+  "minCoreVersion": "1.0.2",
   "displayName": "Codex",
   "entry": "runtime/index.json",
   "packageMode": "hotUpdate",
@@ -32,6 +32,25 @@
     "cli"
   ],
   "changelog": [
+    {
+      "version": "1.0.2",
+      "date": "2026-07-03",
+      "notes": [
+        "Improved Codex account persistence, local API service compatibility, session transfer, batch operations, and sensitive account notes support."
+      ],
+      "locales": {
+        "zh-CN": {
+          "notes": [
+            "改进 Codex 账号持久化、本地 API 服务兼容性、会话迁移、批量操作和账号敏感备注支持。"
+          ]
+        },
+        "zh-TW": {
+          "notes": [
+            "改進 Codex 帳號持久化、本機 API 服務相容性、會話遷移、批量操作與帳號敏感備註支援。"
+          ]
+        }
+      }
+    },
     {
       "version": "1.0.1",
       "date": "2026-07-02",

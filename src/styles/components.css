@@ -486,7 +486,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  max-width: min(260px, 32vw);
+  max-width: min(340px, 40vw);
 }
 
 .page-top-strip-right-slot {

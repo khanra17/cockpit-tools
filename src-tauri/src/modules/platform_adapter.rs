@@ -45,6 +45,46 @@ static PLATFORM_ADAPTER_LIFECYCLE_LOCKS: std::sync::LazyLock<
 static HOST_EVENT_BRIDGE: std::sync::LazyLock<Mutex<Option<HostEventBridge>>> =
     std::sync::LazyLock::new(|| Mutex::new(None));
 
+fn format_error_chain(error: &(dyn std::error::Error + 'static)) -> String {
+    let mut parts = vec![error.to_string()];
+    let mut source = error.source();
+    while let Some(err) = source {
+        let detail = err.to_string();
+        if !detail.trim().is_empty() && parts.last().map(|item| item != &detail).unwrap_or(true) {
+            parts.push(detail);
+        }
+        source = err.source();
+    }
+    parts.join(" | caused by: ")
+}
+
+fn format_reqwest_error(error: &reqwest::Error) -> String {
+    let mut tags = Vec::new();
+    if error.is_timeout() {
+        tags.push("timeout");
+    }
+    if error.is_connect() {
+        tags.push("connect");
+    }
+    if error.is_request() {
+        tags.push("request");
+    }
+    if let Some(status) = error.status() {
+        tags.push(match status.as_u16() {
+            400..=499 => "http-4xx",
+            500..=599 => "http-5xx",
+            _ => "http-status",
+        });
+    }
+
+    let detail = format_error_chain(error);
+    if tags.is_empty() {
+        detail
+    } else {
+        format!("{} [{}]", detail, tags.join(","))
+    }
+}
+
 #[derive(Debug, Clone)]
 struct HostEventBridge {
     url: String,
@@ -460,6 +500,7 @@ fn spawn_adapter(
         )
         .env("COCKPIT_HOST_EVENT_URL", &host_event_bridge.url)
         .env("COCKPIT_HOST_EVENT_TOKEN", &host_event_bridge.token);
+    crate::modules::process::apply_managed_proxy_env_to_command(&mut command);
 
     logger::log_info(&format!(
         "[PlatformAdapter][Perf] adapter 启动开始: platform={}, path={}",
@@ -716,9 +757,13 @@ fn post_adapter_request_on_blocking_thread(
 ) -> Result<Value, AdapterRequestError> {
     let client = reqwest::blocking::Client::builder()
         .timeout(timeout)
+        .no_proxy()
         .build()
         .map_err(|error| {
-            AdapterRequestError::Protocol(format!("创建平台 adapter HTTP 客户端失败: {}", error))
+            AdapterRequestError::Protocol(format!(
+                "创建平台 adapter HTTP 客户端失败: {}",
+                format_reqwest_error(&error)
+            ))
         })?;
     let response = client
         .post(&endpoint.url)
@@ -729,7 +774,10 @@ fn post_adapter_request_on_blocking_thread(
         })
         .send()
         .map_err(|error| {
-            AdapterRequestError::Transport(format!("调用平台 adapter 失败: {}", error))
+            AdapterRequestError::Transport(format!(
+                "调用平台 adapter 失败: {}",
+                format_reqwest_error(&error)
+            ))
         })?;
     if !response.status().is_success() {
         return Err(AdapterRequestError::Protocol(format!(
@@ -738,7 +786,10 @@ fn post_adapter_request_on_blocking_thread(
         )));
     }
     let response = response.json::<AdapterResponse>().map_err(|error| {
-        AdapterRequestError::Protocol(format!("解析平台 adapter 响应失败: {}", error))
+        AdapterRequestError::Protocol(format!(
+            "解析平台 adapter 响应失败: {}",
+            format_reqwest_error(&error)
+        ))
     })?;
     if response.ok {
         return Ok(response.data.unwrap_or(Value::Null));

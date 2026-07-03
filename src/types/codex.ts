@@ -41,6 +41,9 @@ export interface CodexAccount {
   account_name?: string;
   account_structure?: string;
   account_note?: string;
+  two_factor_secret?: string;
+  account_password?: string;
+  phone_number?: string;
   app_speed?: CodexAppSpeed;
   tokens: CodexTokens;
   token_generation?: number;
@@ -56,6 +59,33 @@ export interface CodexAccount {
   tags?: string[];
   created_at: number;
   last_used: number;
+}
+
+export interface CodexAccountNoteUpdate {
+  note?: string;
+  twoFactorSecret?: string;
+  accountPassword?: string;
+  phoneNumber?: string;
+}
+
+export interface CodexBatchDeleteError {
+  accountId: string;
+  error: string;
+}
+
+export type CodexBatchDeleteStatusState =
+  | 'running'
+  | 'paused'
+  | 'completed'
+  | 'failed';
+
+export interface CodexBatchDeleteJobStatus {
+  jobId: string;
+  status: CodexBatchDeleteStatusState;
+  total: number;
+  completed: number;
+  failed: number;
+  errors: CodexBatchDeleteError[];
 }
 
 export interface CodexQuotaErrorInfo {
@@ -263,6 +293,7 @@ export interface CodexSessionVisibilityRepairInstanceList {
 
 export interface CodexSessionVisibilityRepairRequestOptions {
   mode?: CodexSessionVisibilityRepairMode;
+  dryRun?: boolean;
   targetProvider?: string | null;
   targetInstanceId?: string | null;
   repairInstanceIds?: string[] | null;
