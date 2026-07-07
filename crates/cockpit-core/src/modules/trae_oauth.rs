@@ -21,7 +21,7 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::models::trae::{TraeImportPayload, TraeOAuthStartResponse};
-use crate::modules::{config, logger, trae_account};
+use crate::modules::{logger, trae_account};
 
 const OAUTH_TIMEOUT_SECONDS: i64 = 600;
 const OAUTH_POLL_INTERVAL_MS: u64 = 250;
@@ -573,8 +573,11 @@ fn trae_product_linux_base_paths(
 
 fn trae_product_base_paths(platform: trae_account::TraePlatformKind) -> Vec<PathBuf> {
     let mut candidates: Vec<PathBuf> = Vec::new();
-    if platform == trae_account::TraePlatformKind::Trae {
-        let configured_path = config::get_user_config().trae_app_path.trim().to_string();
+    #[cfg(not(target_os = "windows"))]
+    {
+        let configured_path = trae_account::trae_configured_app_path(platform)
+            .trim()
+            .to_string();
         if !configured_path.is_empty() {
             candidates.push(PathBuf::from(configured_path));
         }
@@ -603,6 +606,15 @@ fn trae_product_base_paths(platform: trae_account::TraePlatformKind) -> Vec<Path
 
     #[cfg(target_os = "windows")]
     {
+        candidates.extend(trae_account::windows_trae_install_base_paths(platform));
+        candidates.extend(trae_account::windows_trae_scan_root_base_paths(platform));
+        let configured_path = trae_account::trae_configured_app_path(platform)
+            .trim()
+            .to_string();
+        if !configured_path.is_empty() {
+            candidates.push(PathBuf::from(configured_path));
+        }
+
         let app_dir = platform.app_support_dir_name();
         if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
             let programs_dir = PathBuf::from(&local_app_data)
@@ -3240,6 +3252,84 @@ mod tests {
             Some("https://grow-normal.traeapi.us/trae/api/v3/oauth/ExchangeToken")
         );
         assert_eq!(urls.len(), 1);
+    }
+
+    #[test]
+    fn product_info_reads_versions_and_account_api_from_product_json() {
+        let product_path =
+            std::env::temp_dir().join(format!("trae-product-{}.json", Uuid::new_v4()));
+        let product = json!({
+            "quality": "stable",
+            "tronBuildVersion": "2.3.49027",
+            "appVersion": "3.5.71",
+            "iCubeApp": {
+                "authConfig": {
+                    "SOLO": {
+                        "stable": "solo-client-from-product"
+                    }
+                }
+            },
+            "bootConfig": {
+                "account": {
+                    "trae": {
+                        "normal": "https://grow-normal.trae.ai",
+                        "SG": "https://growsg-normal.trae.ai",
+                        "USTTP": "https://grow-normal.traeapi.us"
+                    }
+                }
+            }
+        });
+        fs::write(&product_path, product.to_string()).expect("write product json");
+
+        let info = read_trae_product_info(
+            product_path.as_path(),
+            trae_account::TraePlatformKind::TraeSolo,
+        )
+        .expect("product info");
+        let _ = fs::remove_file(&product_path);
+
+        assert_eq!(info.plugin_version.as_deref(), Some("2.3.49027"));
+        assert_eq!(info.app_version.as_deref(), Some("3.5.71"));
+        assert_eq!(info.client_id.as_deref(), Some("solo-client-from-product"));
+        let account_api = info.account_api.expect("account api");
+        assert_eq!(
+            official_auth_code_account_origin(
+                trae_account::TraePlatformKind::TraeSolo,
+                &account_api,
+                Some("row")
+            ),
+            "https://growsg-normal.trae.ai"
+        );
+        assert_eq!(
+            official_auth_code_account_origin(
+                trae_account::TraePlatformKind::TraeSolo,
+                &account_api,
+                Some("usttp")
+            ),
+            "https://grow-normal.traeapi.us"
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_registered_product_info_is_detected_when_product_exists() {
+        let paths =
+            trae_account::windows_trae_install_base_paths(trae_account::TraePlatformKind::TraeCn);
+        let has_product = paths
+            .iter()
+            .flat_map(|path| build_trae_product_file_candidates(path.as_path()))
+            .any(|path| path.exists());
+        if !has_product {
+            return;
+        }
+
+        let info = detect_trae_product_info(trae_account::TraePlatformKind::TraeCn);
+        assert!(info.plugin_version.is_some());
+        assert!(info.app_version.is_some());
+        let account_api = info.account_api.expect("account api from product.json");
+        assert_eq!(account_api.normal, TRAE_ACCOUNT_API_ORIGIN_CN);
+        assert!(account_api.sg.is_none());
+        assert!(account_api.usttp.is_none());
     }
 
     #[test]

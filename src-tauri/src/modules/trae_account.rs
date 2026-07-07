@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use crate::models::trae::{TraeAccount, TraeAccountIndex, TraeImportPayload};
-use crate::modules::{account, logger};
+use crate::modules::{account, config, logger};
 
 const ACCOUNTS_INDEX_FILE: &str = "trae_accounts.json";
 const ACCOUNTS_DIR: &str = "trae_accounts";
@@ -121,6 +121,27 @@ fn all_trae_platform_kinds() -> [TraePlatformKind; 4] {
         TraePlatformKind::TraeCn,
         TraePlatformKind::TraeSoloCn,
     ]
+}
+
+pub(crate) fn trae_configured_app_path(platform: TraePlatformKind) -> String {
+    let current = config::get_user_config();
+    match platform {
+        TraePlatformKind::Trae => current.trae_app_path,
+        TraePlatformKind::TraeSolo => current.trae_solo_app_path,
+        TraePlatformKind::TraeCn => current.trae_cn_app_path,
+        TraePlatformKind::TraeSoloCn => current.trae_solo_cn_app_path,
+    }
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn trae_configured_app_scan_roots(platform: TraePlatformKind) -> String {
+    let current = config::get_user_config();
+    match platform {
+        TraePlatformKind::Trae => current.trae_app_scan_roots,
+        TraePlatformKind::TraeSolo => current.trae_solo_app_scan_roots,
+        TraePlatformKind::TraeCn => current.trae_cn_app_scan_roots,
+        TraePlatformKind::TraeSoloCn => current.trae_solo_cn_app_scan_roots,
+    }
 }
 
 const BYTE_CRYPTO_BLOCK_SIZE: usize = 16;
@@ -2024,6 +2045,304 @@ fn trae_product_exe_names(platform: TraePlatformKind) -> &'static [&'static str]
     }
 }
 
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+#[cfg(target_os = "windows")]
+fn windows_cmd_output_utf16(args: &[&str]) -> Option<std::process::Output> {
+    use std::os::windows::process::CommandExt;
+
+    let mut command = std::process::Command::new("cmd");
+    command.args(args);
+    command.creation_flags(CREATE_NO_WINDOW);
+    command.output().ok()
+}
+
+#[cfg(target_os = "windows")]
+fn decode_utf16le(bytes: &[u8]) -> String {
+    let words: Vec<u16> = bytes
+        .chunks_exact(2)
+        .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
+        .collect();
+    String::from_utf16_lossy(&words)
+}
+
+#[cfg(target_os = "windows")]
+fn registry_line_value(line: &str) -> Option<String> {
+    let pos = line.find("REG_")?;
+    let after = &line[pos..];
+    let value_start = after.find(char::is_whitespace)?;
+    let value = after[value_start..].trim();
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.to_string())
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn reg_query_value(key: &str, value_name: &str) -> Option<String> {
+    let cmd = format!("reg query \"{}\" /v \"{}\"", key, value_name);
+    let output = windows_cmd_output_utf16(&["/u", "/c", cmd.as_str()])?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = decode_utf16le(output.stdout.as_slice());
+    let value_name_lower = value_name.to_ascii_lowercase();
+    stdout.lines().find_map(|line| {
+        let trimmed = line.trim();
+        if trimmed
+            .to_ascii_lowercase()
+            .starts_with(value_name_lower.as_str())
+        {
+            registry_line_value(trimmed)
+        } else {
+            None
+        }
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn normalize_windows_uninstall_display_name(value: &str) -> String {
+    let mut normalized = value
+        .trim()
+        .to_ascii_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    if let Some(stripped) = normalized.strip_suffix(" (user)") {
+        normalized = stripped.to_string();
+    }
+    normalized
+}
+
+#[cfg(target_os = "windows")]
+fn windows_uninstall_display_names(platform: TraePlatformKind) -> &'static [&'static str] {
+    match platform {
+        TraePlatformKind::Trae => &["Trae"],
+        TraePlatformKind::TraeSolo => &["TRAE SOLO"],
+        TraePlatformKind::TraeCn => &["Trae CN"],
+        TraePlatformKind::TraeSoloCn => &["TRAE SOLO CN", "TRAE Work CN"],
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn windows_uninstall_display_name_matches(platform: TraePlatformKind, display_name: &str) -> bool {
+    let display_name = normalize_windows_uninstall_display_name(display_name);
+    windows_uninstall_display_names(platform)
+        .iter()
+        .any(|expected| normalize_windows_uninstall_display_name(expected) == display_name)
+}
+
+#[cfg(target_os = "windows")]
+fn normalize_windows_registry_path(value: &str) -> Option<PathBuf> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let path = if let Some(rest) = trimmed.strip_prefix('"') {
+        rest.split('"').next().unwrap_or(rest).trim()
+    } else if let Some(pos) = trimmed.to_ascii_lowercase().find(".exe") {
+        &trimmed[..pos + 4]
+    } else {
+        trimmed.split(',').next().unwrap_or(trimmed).trim()
+    };
+
+    let path = path.trim_matches('"').trim();
+    if path.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(path))
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn push_windows_install_dir_candidates(
+    candidates: &mut Vec<PathBuf>,
+    install_dir: &str,
+    platform: TraePlatformKind,
+) {
+    let Some(root) = normalize_windows_registry_path(install_dir) else {
+        return;
+    };
+    for exe_name in trae_product_exe_names(platform) {
+        candidates.push(root.join(exe_name));
+    }
+    candidates.push(root);
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn windows_trae_install_base_paths(platform: TraePlatformKind) -> Vec<PathBuf> {
+    let uninstall_roots = [
+        "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        "HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+    ];
+    let mut matched_keys = Vec::new();
+
+    for root in uninstall_roots {
+        let cmd = format!("reg query \"{}\" /s /v DisplayName", root);
+        let Some(output) = windows_cmd_output_utf16(&["/u", "/c", cmd.as_str()]) else {
+            continue;
+        };
+        if !output.status.success() {
+            continue;
+        }
+
+        let stdout = decode_utf16le(output.stdout.as_slice());
+        let mut current_key: Option<String> = None;
+        for line in stdout.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("HKEY_") {
+                current_key = Some(trimmed.to_string());
+                continue;
+            }
+            if !trimmed.to_ascii_lowercase().starts_with("displayname") {
+                continue;
+            }
+            let Some(display_name) = registry_line_value(trimmed) else {
+                continue;
+            };
+            if windows_uninstall_display_name_matches(platform, display_name.as_str()) {
+                if let Some(key) = current_key.as_ref() {
+                    matched_keys.push(key.clone());
+                }
+            }
+        }
+    }
+
+    let mut candidates = Vec::new();
+    for key in matched_keys {
+        if let Some(display_icon) = reg_query_value(key.as_str(), "DisplayIcon") {
+            if let Some(exe_path) = normalize_windows_registry_path(display_icon.as_str()) {
+                if let Some(parent) = exe_path.parent() {
+                    candidates.push(parent.to_path_buf());
+                }
+                candidates.push(exe_path);
+            }
+        }
+        if let Some(install_location) = reg_query_value(key.as_str(), "InstallLocation") {
+            push_windows_install_dir_candidates(
+                &mut candidates,
+                install_location.as_str(),
+                platform,
+            );
+        }
+    }
+
+    let mut dedup = BTreeMap::new();
+    for candidate in candidates {
+        dedup
+            .entry(candidate.to_string_lossy().to_string())
+            .or_insert(candidate);
+    }
+    dedup.into_values().collect()
+}
+
+#[cfg(target_os = "windows")]
+fn normalize_windows_scan_root(raw: &str) -> Option<PathBuf> {
+    let mut value = raw
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .trim()
+        .to_string();
+    if value.is_empty() {
+        return None;
+    }
+    if value.len() == 2 && value.as_bytes().get(1) == Some(&b':') {
+        value.push('\\');
+    }
+    let path = PathBuf::from(value);
+    if path.is_dir() {
+        Some(path)
+    } else {
+        None
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn is_windows_drive_root(path: &Path) -> bool {
+    let value = path.to_string_lossy().replace('/', "\\");
+    let trimmed = value.trim_end_matches('\\');
+    trimmed.len() == 2
+        && trimmed.as_bytes().get(1) == Some(&b':')
+        && trimmed.as_bytes()[0].is_ascii_alphabetic()
+}
+
+#[cfg(target_os = "windows")]
+fn expand_windows_scan_roots_for_trae(roots: Vec<PathBuf>) -> Vec<PathBuf> {
+    let mut expanded = Vec::new();
+    for root in roots {
+        if is_windows_drive_root(&root) {
+            expanded.push(root.join("Program Files"));
+            expanded.push(root.join("Program Files (x86)"));
+            let users_dir = root.join("Users");
+            if let Ok(entries) = fs::read_dir(users_dir) {
+                for entry in entries.flatten() {
+                    expanded.push(entry.path().join("AppData").join("Local").join("Programs"));
+                }
+            }
+        } else {
+            expanded.push(root);
+        }
+    }
+
+    let mut dedup = BTreeMap::new();
+    for root in expanded {
+        if root.is_dir() {
+            dedup
+                .entry(root.to_string_lossy().to_ascii_lowercase())
+                .or_insert(root);
+        }
+    }
+    dedup.into_values().collect()
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn windows_trae_scan_root_base_paths(platform: TraePlatformKind) -> Vec<PathBuf> {
+    let scan_roots = trae_configured_app_scan_roots(platform);
+    if scan_roots.trim().is_empty() {
+        return Vec::new();
+    }
+
+    let roots = scan_roots
+        .split(|ch| matches!(ch, '\n' | '\r' | ';' | ','))
+        .filter_map(normalize_windows_scan_root)
+        .collect::<Vec<_>>();
+    let app_dir = platform.app_support_dir_name();
+    let mut candidates = Vec::new();
+    for root in expand_windows_scan_roots_for_trae(roots) {
+        let root_is_app_dir = root
+            .file_name()
+            .and_then(|value| value.to_str())
+            .map(|value| value.eq_ignore_ascii_case(app_dir))
+            .unwrap_or(false);
+        if root_is_app_dir {
+            for exe_name in trae_product_exe_names(platform) {
+                candidates.push(root.join(exe_name));
+            }
+            candidates.push(root.clone());
+        }
+
+        let install_dir = root.join(app_dir);
+        for exe_name in trae_product_exe_names(platform) {
+            candidates.push(install_dir.join(exe_name));
+        }
+        candidates.push(install_dir);
+    }
+
+    let mut dedup = BTreeMap::new();
+    for candidate in candidates {
+        dedup
+            .entry(candidate.to_string_lossy().to_ascii_lowercase())
+            .or_insert(candidate);
+    }
+    dedup.into_values().collect()
+}
+
 #[cfg(target_os = "linux")]
 fn trae_product_linux_base_paths(platform: TraePlatformKind) -> &'static [&'static str] {
     match platform {
@@ -2056,6 +2375,10 @@ fn trae_product_linux_base_paths(platform: TraePlatformKind) -> &'static [&'stat
 
 fn trae_product_base_paths(platform: TraePlatformKind) -> Vec<PathBuf> {
     let mut candidates: Vec<PathBuf> = Vec::new();
+    let configured_path = trae_configured_app_path(platform).trim().to_string();
+    if !configured_path.is_empty() {
+        candidates.push(PathBuf::from(configured_path));
+    }
 
     #[cfg(target_os = "macos")]
     {
@@ -2066,6 +2389,9 @@ fn trae_product_base_paths(platform: TraePlatformKind) -> Vec<PathBuf> {
 
     #[cfg(target_os = "windows")]
     {
+        candidates.extend(windows_trae_install_base_paths(platform));
+        candidates.extend(windows_trae_scan_root_base_paths(platform));
+
         let app_dir = platform.app_support_dir_name();
         if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
             let programs_dir = PathBuf::from(&local_app_data)
@@ -4696,6 +5022,48 @@ mod tests {
         assert_eq!(
             read_product_auth_client_id(&root, TraePlatformKind::TraeSolo).as_deref(),
             Some("solo-stable-client")
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_uninstall_display_name_matching_is_platform_scoped() {
+        assert!(windows_uninstall_display_name_matches(
+            TraePlatformKind::Trae,
+            "Trae (User)"
+        ));
+        assert!(!windows_uninstall_display_name_matches(
+            TraePlatformKind::Trae,
+            "Trae CN (User)"
+        ));
+        assert!(windows_uninstall_display_name_matches(
+            TraePlatformKind::TraeCn,
+            "Trae CN (User)"
+        ));
+        assert!(windows_uninstall_display_name_matches(
+            TraePlatformKind::TraeSoloCn,
+            "TRAE Work CN (User)"
+        ));
+        assert!(windows_uninstall_display_name_matches(
+            TraePlatformKind::TraeSoloCn,
+            "TRAE SOLO CN"
+        ));
+        assert!(!windows_uninstall_display_name_matches(
+            TraePlatformKind::TraeSolo,
+            "TRAE Work CN (User)"
+        ));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_registry_path_normalization_handles_icons_and_install_dirs() {
+        assert_eq!(
+            normalize_windows_registry_path("\"D:\\Apps\\Trae CN\\Trae CN.exe\",0"),
+            Some(PathBuf::from("D:\\Apps\\Trae CN\\Trae CN.exe"))
+        );
+        assert_eq!(
+            normalize_windows_registry_path("D:\\Apps\\TRAE SOLO CN\\"),
+            Some(PathBuf::from("D:\\Apps\\TRAE SOLO CN\\"))
         );
     }
 

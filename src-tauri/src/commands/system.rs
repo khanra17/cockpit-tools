@@ -153,6 +153,14 @@ pub struct GeneralConfig {
     pub qoder_app_path: String,
     /// Trae 启动路径（为空则使用默认路径）
     pub trae_app_path: String,
+    /// Trae Windows 应用扫描范围（每行一个目录）
+    pub trae_solo_app_path: String,
+    pub trae_cn_app_path: String,
+    pub trae_solo_cn_app_path: String,
+    pub trae_app_scan_roots: String,
+    pub trae_solo_app_scan_roots: String,
+    pub trae_cn_app_scan_roots: String,
+    pub trae_solo_cn_app_scan_roots: String,
     /// WorkBuddy 启动路径（为空则使用默认路径）
     pub workbuddy_app_path: String,
     /// 切换 Codex 时是否自动重启 OpenCode
@@ -2002,6 +2010,13 @@ pub fn save_network_config(
         codebuddy_cn_app_path: current.codebuddy_cn_app_path,
         qoder_app_path: current.qoder_app_path,
         trae_app_path: current.trae_app_path,
+        trae_solo_app_path: current.trae_solo_app_path,
+        trae_cn_app_path: current.trae_cn_app_path,
+        trae_solo_cn_app_path: current.trae_solo_cn_app_path,
+        trae_app_scan_roots: current.trae_app_scan_roots,
+        trae_solo_app_scan_roots: current.trae_solo_app_scan_roots,
+        trae_cn_app_scan_roots: current.trae_cn_app_scan_roots,
+        trae_solo_cn_app_scan_roots: current.trae_solo_cn_app_scan_roots,
         workbuddy_app_path: current.workbuddy_app_path,
         opencode_sync_on_switch: current.opencode_sync_on_switch,
         opencode_auth_overwrite_on_switch: current.opencode_auth_overwrite_on_switch,
@@ -2308,6 +2323,13 @@ pub fn get_general_config(app: tauri::AppHandle) -> Result<GeneralConfig, String
         codebuddy_cn_app_path: user_config.codebuddy_cn_app_path,
         qoder_app_path: user_config.qoder_app_path,
         trae_app_path: user_config.trae_app_path,
+        trae_solo_app_path: user_config.trae_solo_app_path,
+        trae_cn_app_path: user_config.trae_cn_app_path,
+        trae_solo_cn_app_path: user_config.trae_solo_cn_app_path,
+        trae_app_scan_roots: user_config.trae_app_scan_roots,
+        trae_solo_app_scan_roots: user_config.trae_solo_app_scan_roots,
+        trae_cn_app_scan_roots: user_config.trae_cn_app_scan_roots,
+        trae_solo_cn_app_scan_roots: user_config.trae_solo_cn_app_scan_roots,
         workbuddy_app_path: user_config.workbuddy_app_path,
         opencode_sync_on_switch: user_config.opencode_sync_on_switch,
         opencode_auth_overwrite_on_switch: user_config.opencode_auth_overwrite_on_switch,
@@ -2443,6 +2465,13 @@ pub fn save_general_config(
     codebuddy_cn_app_path: Option<String>,
     qoder_app_path: Option<String>,
     trae_app_path: Option<String>,
+    trae_solo_app_path: Option<String>,
+    trae_cn_app_path: Option<String>,
+    trae_solo_cn_app_path: Option<String>,
+    trae_app_scan_roots: Option<String>,
+    trae_solo_app_scan_roots: Option<String>,
+    trae_cn_app_scan_roots: Option<String>,
+    trae_solo_cn_app_scan_roots: Option<String>,
     workbuddy_app_path: Option<String>,
     opencode_sync_on_switch: bool,
     opencode_auth_overwrite_on_switch: Option<bool>,
@@ -2542,6 +2571,27 @@ pub fn save_general_config(
     let normalized_trae_path = trae_app_path
         .map(|value| value.trim().to_string())
         .unwrap_or_else(|| current.trae_app_path.clone());
+    let normalized_trae_solo_path = trae_solo_app_path
+        .map(|value| value.trim().to_string())
+        .unwrap_or_else(|| current.trae_solo_app_path.clone());
+    let normalized_trae_cn_path = trae_cn_app_path
+        .map(|value| value.trim().to_string())
+        .unwrap_or_else(|| current.trae_cn_app_path.clone());
+    let normalized_trae_solo_cn_path = trae_solo_cn_app_path
+        .map(|value| value.trim().to_string())
+        .unwrap_or_else(|| current.trae_solo_cn_app_path.clone());
+    let normalized_trae_app_scan_roots = trae_app_scan_roots
+        .map(|value| value.trim().to_string())
+        .unwrap_or_else(|| current.trae_app_scan_roots.clone());
+    let normalized_trae_solo_app_scan_roots = trae_solo_app_scan_roots
+        .map(|value| value.trim().to_string())
+        .unwrap_or_else(|| current.trae_solo_app_scan_roots.clone());
+    let normalized_trae_cn_app_scan_roots = trae_cn_app_scan_roots
+        .map(|value| value.trim().to_string())
+        .unwrap_or_else(|| current.trae_cn_app_scan_roots.clone());
+    let normalized_trae_solo_cn_app_scan_roots = trae_solo_cn_app_scan_roots
+        .map(|value| value.trim().to_string())
+        .unwrap_or_else(|| current.trae_solo_cn_app_scan_roots.clone());
     let normalized_workbuddy_path = workbuddy_app_path
         .map(|value| value.trim().to_string())
         .unwrap_or_else(|| current.workbuddy_app_path.clone());
@@ -2687,6 +2737,13 @@ pub fn save_general_config(
         codebuddy_cn_app_path: normalized_codebuddy_cn_path,
         qoder_app_path: normalized_qoder_path,
         trae_app_path: normalized_trae_path,
+        trae_solo_app_path: normalized_trae_solo_path,
+        trae_cn_app_path: normalized_trae_cn_path,
+        trae_solo_cn_app_path: normalized_trae_solo_cn_path,
+        trae_app_scan_roots: normalized_trae_app_scan_roots,
+        trae_solo_app_scan_roots: normalized_trae_solo_app_scan_roots,
+        trae_cn_app_scan_roots: normalized_trae_cn_app_scan_roots,
+        trae_solo_cn_app_scan_roots: normalized_trae_solo_cn_app_scan_roots,
         workbuddy_app_path: normalized_workbuddy_path,
         opencode_sync_on_switch: next_opencode_sync_on_switch,
         opencode_auth_overwrite_on_switch: next_opencode_auth_overwrite_on_switch,
@@ -2907,6 +2964,9 @@ pub fn set_app_path(app: String, path: String) -> Result<(), String> {
         "codebuddy_cn" => current.codebuddy_cn_app_path = normalized_path,
         "qoder" => current.qoder_app_path = normalized_path,
         "trae" => current.trae_app_path = normalized_path,
+        "trae_solo" => current.trae_solo_app_path = normalized_path,
+        "trae_cn" => current.trae_cn_app_path = normalized_path,
+        "trae_solo_cn" => current.trae_solo_cn_app_path = normalized_path,
         "workbuddy" => current.workbuddy_app_path = normalized_path,
         "opencode" => current.opencode_app_path = normalized_path,
         _ => return Err("未知应用类型".to_string()),
@@ -2925,6 +2985,57 @@ pub fn set_claude_app_scan_roots(scan_roots: String) -> Result<(), String> {
     let new_config = UserConfig {
         claude_app_scan_roots: normalized,
         ..current
+    };
+    config::save_user_config(&new_config)
+}
+
+#[tauri::command]
+pub fn set_trae_app_scan_roots(app: Option<String>, scan_roots: String) -> Result<(), String> {
+    let current = config::get_user_config();
+    let normalized = scan_roots.trim().to_string();
+    let target = app
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("trae");
+    let new_config = match target {
+        "trae" => {
+            if current.trae_app_scan_roots == normalized {
+                return Ok(());
+            }
+            UserConfig {
+                trae_app_scan_roots: normalized,
+                ..current
+            }
+        }
+        "trae_solo" => {
+            if current.trae_solo_app_scan_roots == normalized {
+                return Ok(());
+            }
+            UserConfig {
+                trae_solo_app_scan_roots: normalized,
+                ..current
+            }
+        }
+        "trae_cn" => {
+            if current.trae_cn_app_scan_roots == normalized {
+                return Ok(());
+            }
+            UserConfig {
+                trae_cn_app_scan_roots: normalized,
+                ..current
+            }
+        }
+        "trae_solo_cn" => {
+            if current.trae_solo_cn_app_scan_roots == normalized {
+                return Ok(());
+            }
+            UserConfig {
+                trae_solo_cn_app_scan_roots: normalized,
+                ..current
+            }
+        }
+        _ => return Err("鏈煡搴旂敤绫诲瀷".to_string()),
     };
     config::save_user_config(&new_config)
 }

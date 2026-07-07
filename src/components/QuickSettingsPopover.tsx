@@ -89,6 +89,13 @@ interface GeneralConfig {
   codebuddy_cn_app_path: string;
   qoder_app_path: string;
   trae_app_path: string;
+  trae_solo_app_path: string;
+  trae_cn_app_path: string;
+  trae_solo_cn_app_path: string;
+  trae_app_scan_roots: string;
+  trae_solo_app_scan_roots: string;
+  trae_cn_app_scan_roots: string;
+  trae_solo_cn_app_scan_roots: string;
   workbuddy_app_path: string;
   zed_app_path: string;
   opencode_sync_on_switch: boolean;
@@ -253,14 +260,38 @@ const getAppPathKeyForTarget = (target: AppPathTarget): keyof GeneralConfig => {
     case 'qoder':
       return 'qoder_app_path';
     case 'trae':
-    case 'trae_solo':
-    case 'trae_cn':
-    case 'trae_solo_cn':
       return 'trae_app_path';
+    case 'trae_solo':
+      return 'trae_solo_app_path';
+    case 'trae_cn':
+      return 'trae_cn_app_path';
+    case 'trae_solo_cn':
+      return 'trae_solo_cn_app_path';
     case 'workbuddy':
       return 'workbuddy_app_path';
     case 'zed':
       return 'zed_app_path';
+  }
+};
+
+const isTraeQuickSettingsType = (
+  value: QuickSettingsType,
+): value is 'trae' | 'trae_solo' | 'trae_cn' | 'trae_solo_cn' =>
+  value === 'trae' || value === 'trae_solo' || value === 'trae_cn' || value === 'trae_solo_cn';
+
+type TraeQuickSettingsType = 'trae' | 'trae_solo' | 'trae_cn' | 'trae_solo_cn';
+
+const getTraeAppScanRootsKey = (value: TraeQuickSettingsType): keyof GeneralConfig => {
+  switch (value) {
+    case 'trae_solo':
+      return 'trae_solo_app_scan_roots';
+    case 'trae_cn':
+      return 'trae_cn_app_scan_roots';
+    case 'trae_solo_cn':
+      return 'trae_solo_cn_app_scan_roots';
+    case 'trae':
+    default:
+      return 'trae_app_scan_roots';
   }
 };
 
@@ -850,7 +881,13 @@ export function QuickSettingsPopover({ type }: QuickSettingsPopoverProps) {
       setCodexAutoSwitchSecondaryCustomThreshold(String(cfg.codex_auto_switch_secondary_threshold));
       setCodexQuotaAlertPrimaryCustomThreshold(String(cfg.codex_quota_alert_primary_threshold));
       setCodexQuotaAlertSecondaryCustomThreshold(String(cfg.codex_quota_alert_secondary_threshold));
-      setAppScanRootsDraft(type === 'claude' ? cfg.claude_app_scan_roots || '' : '');
+      setAppScanRootsDraft(
+        type === 'claude'
+          ? cfg.claude_app_scan_roots || ''
+          : isTraeQuickSettingsType(type)
+            ? String(cfg[getTraeAppScanRootsKey(type)] || '')
+            : '',
+      );
       setAppLaunchCandidates([]);
     } catch (err) {
       console.error('Failed to load config:', err);
@@ -931,6 +968,13 @@ export function QuickSettingsPopover({ type }: QuickSettingsPopoverProps) {
           codebuddyCnAppPath: merged.codebuddy_cn_app_path,
           qoderAppPath: merged.qoder_app_path,
           traeAppPath: merged.trae_app_path,
+          traeSoloAppPath: merged.trae_solo_app_path,
+          traeCnAppPath: merged.trae_cn_app_path,
+          traeSoloCnAppPath: merged.trae_solo_cn_app_path,
+          traeAppScanRoots: merged.trae_app_scan_roots,
+          traeSoloAppScanRoots: merged.trae_solo_app_scan_roots,
+          traeCnAppScanRoots: merged.trae_cn_app_scan_roots,
+          traeSoloCnAppScanRoots: merged.trae_solo_cn_app_scan_roots,
           workbuddyAppPath: merged.workbuddy_app_path,
           zedAppPath: merged.zed_app_path,
           opencodeSyncOnSwitch: merged.opencode_sync_on_switch,
@@ -1028,6 +1072,8 @@ export function QuickSettingsPopover({ type }: QuickSettingsPopoverProps) {
       setAppLaunchCandidates([]);
       if (type === 'claude') {
         saveConfig({ claude_app_scan_roots: path });
+      } else if (isTraeQuickSettingsType(type)) {
+        saveConfig({ [getTraeAppScanRootsKey(type)]: path });
       }
     } catch (err) {
       console.error('Failed to pick app scan root:', err);
@@ -1044,6 +1090,8 @@ export function QuickSettingsPopover({ type }: QuickSettingsPopoverProps) {
     setAppLaunchCandidates([]);
     if (type === 'claude') {
       saveConfig({ claude_app_scan_roots: '' });
+    } else if (isTraeQuickSettingsType(type)) {
+      saveConfig({ [getTraeAppScanRootsKey(type)]: '' });
     }
   };
 
@@ -1285,11 +1333,7 @@ export function QuickSettingsPopover({ type }: QuickSettingsPopoverProps) {
     }
   };
 
-  const showAppPathSection =
-    type !== 'gemini'
-    && type !== 'trae_solo'
-    && type !== 'trae_cn'
-    && type !== 'trae_solo_cn';
+  const showAppPathSection = type !== 'gemini';
   const antigravityLaunchOnSwitch = config?.antigravity_launch_on_switch ?? true;
 
   const getAppPath = (): string => {
@@ -1318,10 +1362,13 @@ export function QuickSettingsPopover({ type }: QuickSettingsPopoverProps) {
       case 'qoder':
         return config.qoder_app_path;
       case 'trae':
-      case 'trae_solo':
-      case 'trae_cn':
-      case 'trae_solo_cn':
         return config.trae_app_path;
+      case 'trae_solo':
+        return config.trae_solo_app_path;
+      case 'trae_cn':
+        return config.trae_cn_app_path;
+      case 'trae_solo_cn':
+        return config.trae_solo_cn_app_path;
       case 'workbuddy':
         return config.workbuddy_app_path;
       case 'zed':

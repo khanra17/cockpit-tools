@@ -975,13 +975,20 @@ fn normalize_windows_scan_root(raw: &str) -> Option<std::path::PathBuf> {
 
 #[cfg(target_os = "windows")]
 fn parse_windows_scan_roots(scan_roots: Option<&str>) -> Vec<std::path::PathBuf> {
-    let Some(scan_roots) = scan_roots else {
-        return Vec::new();
-    };
     let mut seen = HashSet::new();
-    scan_roots
+    let roots: Vec<std::path::PathBuf> = scan_roots
+        .unwrap_or("")
         .split(|ch| matches!(ch, '\n' | '\r' | ';' | ','))
         .filter_map(normalize_windows_scan_root)
+        .filter(|root| seen.insert(root.to_string_lossy().to_lowercase()))
+        .collect();
+    if !roots.is_empty() {
+        return roots;
+    }
+
+    ('C'..='Z')
+        .map(|drive| std::path::PathBuf::from(format!("{}:\\", drive)))
+        .filter(|root| root.is_dir())
         .filter(|root| seen.insert(root.to_string_lossy().to_lowercase()))
         .collect()
 }
@@ -1047,6 +1054,7 @@ fn scan_windows_app_launch_candidates_under_root(
     candidates: &mut Vec<AppLaunchCandidate>,
     seen: &mut HashSet<String>,
     signature: WindowsAppLaunchSignature,
+    trae_platform: Option<crate::modules::trae_account::TraePlatformKind>,
 ) {
     if candidates.len() >= WINDOWS_APP_SCAN_CANDIDATE_LIMIT || !root.is_dir() {
         return;
@@ -1076,12 +1084,77 @@ fn scan_windows_app_launch_candidates_under_root(
             };
             let path = entry.path();
             if file_type.is_file() {
+                if let Some(platform) = trae_platform {
+                    if !windows_trae_candidate_matches_platform(&path, platform) {
+                        continue;
+                    }
+                }
                 push_app_launch_candidate(candidates, seen, &path, signature, "scan_root");
             } else if file_type.is_dir()
                 && depth < WINDOWS_APP_SCAN_MAX_DEPTH
                 && !should_skip_windows_scan_dir(&path)
             {
                 stack.push((path, depth + 1));
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn windows_trae_platform_for_app(
+    app: &str,
+) -> Option<crate::modules::trae_account::TraePlatformKind> {
+    crate::modules::trae_account::TraePlatformKind::parse(Some(app)).ok()
+}
+
+#[cfg(target_os = "windows")]
+fn windows_trae_candidate_matches_platform(
+    path: &std::path::Path,
+    platform: crate::modules::trae_account::TraePlatformKind,
+) -> bool {
+    let expected = platform.app_support_dir_name();
+    path.components().any(|component| {
+        component
+            .as_os_str()
+            .to_str()
+            .map(|value| value.eq_ignore_ascii_case(expected))
+            .unwrap_or(false)
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn collect_registered_windows_trae_launch_candidates(
+    candidates: &mut Vec<AppLaunchCandidate>,
+    seen: &mut HashSet<String>,
+    signature: WindowsAppLaunchSignature,
+    platform: crate::modules::trae_account::TraePlatformKind,
+) {
+    for base_path in crate::modules::trae_account::windows_trae_install_base_paths(platform) {
+        if base_path.is_file() {
+            if windows_trae_candidate_matches_platform(&base_path, platform) {
+                push_app_launch_candidate(
+                    candidates,
+                    seen,
+                    &base_path,
+                    signature,
+                    "windows_trae_uninstall_registry",
+                );
+            }
+            continue;
+        }
+        if !base_path.is_dir() {
+            continue;
+        }
+        for exe_name in signature.exe_names {
+            let candidate = base_path.join(exe_name);
+            if windows_trae_candidate_matches_platform(&candidate, platform) {
+                push_app_launch_candidate(
+                    candidates,
+                    seen,
+                    &candidate,
+                    signature,
+                    "windows_trae_uninstall_registry",
+                );
             }
         }
     }
@@ -1098,37 +1171,65 @@ fn scan_windows_app_launch_targets(
 
     let mut candidates = Vec::new();
     let mut seen = HashSet::new();
+    let trae_platform = windows_trae_platform_for_app(app);
+
+    if let Some(platform) = trae_platform {
+        collect_registered_windows_trae_launch_candidates(
+            &mut candidates,
+            &mut seen,
+            signature,
+            platform,
+        );
+    } else {
+        if app == "codex" {
+            if let Some(path) = detect_codex_exec_path_by_windowsapps_scan() {
+                push_app_launch_candidate(
+                    &mut candidates,
+                    &mut seen,
+                    &path,
+                    signature,
+                    "windows_apps",
+                );
+            }
+            if let Some(path) = detect_codex_exec_path_by_appx_install_location() {
+                push_app_launch_candidate(
+                    &mut candidates,
+                    &mut seen,
+                    &path,
+                    signature,
+                    "windows_appx",
+                );
+            }
+        }
+
+        if let Some(path) = detect_windows_exec_path_by_signatures(
+            signature.label,
+            signature.exe_names,
+            signature.command_names,
+            signature.protocol_names,
+            signature.display_keywords,
+        ) {
+            push_app_launch_candidate(
+                &mut candidates,
+                &mut seen,
+                &path,
+                signature,
+                "windows_registry_shortcut_command",
+            );
+        }
+    }
 
     collect_common_windows_app_launch_candidates(&mut candidates, &mut seen, signature);
 
-    if app == "codex" {
-        if let Some(path) = detect_codex_exec_path_by_windowsapps_scan() {
-            push_app_launch_candidate(&mut candidates, &mut seen, &path, signature, "windows_apps");
-        }
-        if let Some(path) = detect_codex_exec_path_by_appx_install_location() {
-            push_app_launch_candidate(&mut candidates, &mut seen, &path, signature, "windows_appx");
-        }
-    }
-
-    if let Some(path) = detect_windows_exec_path_by_signatures(
-        signature.label,
-        signature.exe_names,
-        signature.command_names,
-        signature.protocol_names,
-        signature.display_keywords,
-    ) {
-        push_app_launch_candidate(
-            &mut candidates,
-            &mut seen,
-            &path,
-            signature,
-            "windows_registry_shortcut_command",
-        );
-    }
-
     let scan_roots = expand_windows_scan_roots(parse_windows_scan_roots(scan_roots));
     for root in scan_roots {
-        scan_windows_app_launch_candidates_under_root(&root, &mut candidates, &mut seen, signature);
+        scan_windows_app_launch_candidates_under_root(
+            &root,
+            &mut candidates,
+            &mut seen,
+            signature,
+            trae_platform,
+        );
     }
 
     Ok(candidates)
@@ -1747,8 +1848,26 @@ fn update_app_path_in_config(app: &str, path: &Path) {
                 return;
             }
         }
-        "trae_solo" | "trae_cn" | "trae_solo_cn" => {
-            return;
+        "trae_solo" => {
+            if current.trae_solo_app_path != normalized {
+                current.trae_solo_app_path = normalized;
+            } else {
+                return;
+            }
+        }
+        "trae_cn" => {
+            if current.trae_cn_app_path != normalized {
+                current.trae_cn_app_path = normalized;
+            } else {
+                return;
+            }
+        }
+        "trae_solo_cn" => {
+            if current.trae_solo_cn_app_path != normalized {
+                current.trae_solo_cn_app_path = normalized;
+            } else {
+                return;
+            }
         }
         "workbuddy" => {
             if current.workbuddy_app_path != normalized {
@@ -2596,6 +2715,34 @@ fn detect_trae_exec_path_for_platform(
                 &["TRAE SOLO CN.exe", "Trae.exe", "Electron.exe"]
             }
         };
+        for base_path in crate::modules::trae_account::windows_trae_install_base_paths(platform) {
+            if base_path.is_file() {
+                candidates.push(base_path);
+                continue;
+            }
+            for exe_name in exe_names {
+                candidates.push(base_path.join(exe_name));
+            }
+        }
+        let current = config::get_user_config();
+        let configured_scan_roots = trae_configured_app_scan_roots(&current, platform);
+        if !configured_scan_roots.trim().is_empty() {
+            for root in
+                expand_windows_scan_roots(parse_windows_scan_roots(Some(configured_scan_roots)))
+            {
+                for exe_name in exe_names {
+                    if root
+                        .file_name()
+                        .and_then(|value| value.to_str())
+                        .map(|value| value.eq_ignore_ascii_case(app_dir))
+                        .unwrap_or(false)
+                    {
+                        candidates.push(root.join(exe_name));
+                    }
+                    candidates.push(root.join(app_dir).join(exe_name));
+                }
+            }
+        }
         if let Ok(local_appdata) = std::env::var("LOCALAPPDATA") {
             for exe_name in exe_names {
                 candidates.push(
@@ -2616,7 +2763,7 @@ fn detect_trae_exec_path_for_platform(
             }
         }
         for candidate in candidates {
-            if candidate.exists() {
+            if candidate.exists() && windows_trae_candidate_matches_platform(&candidate, platform) {
                 return Some(candidate);
             }
         }
@@ -3724,17 +3871,53 @@ fn resolve_trae_launch_path() -> Result<std::path::PathBuf, String> {
     resolve_trae_launch_path_for_platform(crate::modules::trae_account::TraePlatformKind::Trae)
 }
 
+fn trae_configured_app_path(
+    current: &config::UserConfig,
+    platform: crate::modules::trae_account::TraePlatformKind,
+) -> &str {
+    match platform {
+        crate::modules::trae_account::TraePlatformKind::Trae => current.trae_app_path.as_str(),
+        crate::modules::trae_account::TraePlatformKind::TraeSolo => {
+            current.trae_solo_app_path.as_str()
+        }
+        crate::modules::trae_account::TraePlatformKind::TraeCn => current.trae_cn_app_path.as_str(),
+        crate::modules::trae_account::TraePlatformKind::TraeSoloCn => {
+            current.trae_solo_cn_app_path.as_str()
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn trae_configured_app_scan_roots(
+    current: &config::UserConfig,
+    platform: crate::modules::trae_account::TraePlatformKind,
+) -> &str {
+    match platform {
+        crate::modules::trae_account::TraePlatformKind::Trae => {
+            current.trae_app_scan_roots.as_str()
+        }
+        crate::modules::trae_account::TraePlatformKind::TraeSolo => {
+            current.trae_solo_app_scan_roots.as_str()
+        }
+        crate::modules::trae_account::TraePlatformKind::TraeCn => {
+            current.trae_cn_app_scan_roots.as_str()
+        }
+        crate::modules::trae_account::TraePlatformKind::TraeSoloCn => {
+            current.trae_solo_cn_app_scan_roots.as_str()
+        }
+    }
+}
+
 fn resolve_trae_launch_path_for_platform(
     platform: crate::modules::trae_account::TraePlatformKind,
 ) -> Result<std::path::PathBuf, String> {
-    if platform == crate::modules::trae_account::TraePlatformKind::Trae {
-        if let Some(custom) = normalize_custom_path(Some(&config::get_user_config().trae_app_path))
-        {
-            if let Some(exec) = resolve_trae_macos_exec_path(&custom) {
-                return Ok(exec);
-            }
-            return Err(app_path_missing_error(platform.provider_key()));
+    let current = config::get_user_config();
+    if let Some(custom) = normalize_custom_path(Some(trae_configured_app_path(&current, platform)))
+    {
+        if let Some(exec) = resolve_trae_macos_exec_path(&custom) {
+            return Ok(exec);
         }
+        return Err(app_path_missing_error(platform.provider_key()));
     }
 
     if let Some(detected) = detect_trae_exec_path_for_platform(platform) {
@@ -3898,19 +4081,18 @@ pub fn detect_and_save_app_path(app: &str, force: bool) -> Option<String> {
                 return Some(config::get_user_config().qoder_app_path);
             }
         }
-        "trae" => {
-            if !force && !current.trae_app_path.trim().is_empty() {
-                return Some(current.trae_app_path);
-            }
-            if let Some(detected) = detect_trae_exec_path() {
-                update_app_path_in_config("trae", &detected);
-                return Some(config::get_user_config().trae_app_path);
-            }
-        }
-        "trae_solo" | "trae_cn" | "trae_solo_cn" => {
+        "trae" | "trae_solo" | "trae_cn" | "trae_solo_cn" => {
             if let Ok(platform) = crate::modules::trae_account::TraePlatformKind::parse(Some(app)) {
+                if !force {
+                    let configured = trae_configured_app_path(&current, platform);
+                    if !configured.trim().is_empty() {
+                        return Some(configured.to_string());
+                    }
+                }
                 if let Some(detected) = detect_trae_exec_path_for_platform(platform) {
-                    return Some(detected.to_string_lossy().to_string());
+                    update_app_path_in_config(app, &detected);
+                    let refreshed = config::get_user_config();
+                    return Some(trae_configured_app_path(&refreshed, platform).to_string());
                 }
             }
         }
@@ -12574,7 +12756,9 @@ mod legacy_platform_adapter_cleanup_tests {
 
 #[cfg(all(test, target_os = "windows"))]
 mod tests {
-    use super::windows_app_launch_signature;
+    use super::{windows_app_launch_signature, windows_trae_candidate_matches_platform};
+    use crate::modules::trae_account::TraePlatformKind;
+    use std::path::Path;
 
     #[test]
     fn windows_launch_signatures_cover_provider_apps() {
@@ -12586,6 +12770,9 @@ mod tests {
             "codebuddy_cn",
             "qoder",
             "trae",
+            "trae_solo",
+            "trae_cn",
+            "trae_solo_cn",
             "workbuddy",
             "windsurf",
             "kiro",
@@ -12621,5 +12808,38 @@ mod tests {
             .exe_names
             .iter()
             .any(|name| name.eq_ignore_ascii_case("Antigravity.exe")));
+    }
+
+    #[test]
+    fn trae_windows_scan_candidates_match_exact_platform_dirs() {
+        let trae = Path::new(r"D:\Users\李杰\AppData\Local\Programs\Trae\Trae.exe");
+        let trae_cn = Path::new(r"D:\Users\李杰\AppData\Local\Programs\Trae CN\Trae CN.exe");
+        let solo_cn =
+            Path::new(r"D:\Users\李杰\AppData\Local\Programs\TRAE SOLO CN\TRAE SOLO CN.exe");
+
+        assert!(windows_trae_candidate_matches_platform(
+            trae,
+            TraePlatformKind::Trae
+        ));
+        assert!(!windows_trae_candidate_matches_platform(
+            trae,
+            TraePlatformKind::TraeCn
+        ));
+        assert!(windows_trae_candidate_matches_platform(
+            trae_cn,
+            TraePlatformKind::TraeCn
+        ));
+        assert!(!windows_trae_candidate_matches_platform(
+            trae_cn,
+            TraePlatformKind::Trae
+        ));
+        assert!(windows_trae_candidate_matches_platform(
+            solo_cn,
+            TraePlatformKind::TraeSoloCn
+        ));
+        assert!(!windows_trae_candidate_matches_platform(
+            solo_cn,
+            TraePlatformKind::TraeSolo
+        ));
     }
 }

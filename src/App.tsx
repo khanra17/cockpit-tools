@@ -227,6 +227,13 @@ interface GeneralConfig extends GeneralConfigTheme, GeneralConfigLanguage {
   codebuddy_cn_app_path: string;
   qoder_app_path: string;
   trae_app_path: string;
+  trae_solo_app_path: string;
+  trae_cn_app_path: string;
+  trae_solo_cn_app_path: string;
+  trae_app_scan_roots: string;
+  trae_solo_app_scan_roots: string;
+  trae_cn_app_scan_roots: string;
+  trae_solo_cn_app_scan_roots: string;
   workbuddy_app_path: string;
   zed_app_path: string;
 }
@@ -274,6 +281,36 @@ const WAKEUP_FORCE_DISABLE_MIGRATION_KEY = 'agtools.wakeup.migration.force_disab
 
 function isTraePlatformApp(app: string): app is 'trae' | 'trae_solo' | 'trae_cn' | 'trae_solo_cn' {
   return app === 'trae' || app === 'trae_solo' || app === 'trae_cn' || app === 'trae_solo_cn';
+}
+
+type TraePlatformApp = 'trae' | 'trae_solo' | 'trae_cn' | 'trae_solo_cn';
+
+function getTraeAppPath(config: GeneralConfig, app: TraePlatformApp): string {
+  switch (app) {
+    case 'trae_solo':
+      return config.trae_solo_app_path;
+    case 'trae_cn':
+      return config.trae_cn_app_path;
+    case 'trae_solo_cn':
+      return config.trae_solo_cn_app_path;
+    case 'trae':
+    default:
+      return config.trae_app_path;
+  }
+}
+
+function getTraeAppScanRoots(config: GeneralConfig, app: TraePlatformApp): string {
+  switch (app) {
+    case 'trae_solo':
+      return config.trae_solo_app_scan_roots;
+    case 'trae_cn':
+      return config.trae_cn_app_scan_roots;
+    case 'trae_solo_cn':
+      return config.trae_solo_cn_app_scan_roots;
+    case 'trae':
+    default:
+      return config.trae_app_scan_roots;
+  }
 }
 const TOP_RIGHT_AD_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 const REMOTE_CONFIG_FALLBACK_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
@@ -2860,7 +2897,7 @@ function MainApp() {
               : appPathMissing.app === 'qoder'
                 ? config.qoder_app_path
               : isTraePlatformApp(appPathMissing.app)
-                ? config.trae_app_path
+                ? getTraeAppPath(config, appPathMissing.app)
               : appPathMissing.app === 'workbuddy'
                 ? config.workbuddy_app_path
               : appPathMissing.app === 'zed'
@@ -2874,7 +2911,11 @@ function MainApp() {
             isClaudeWindowsAppLaunchTarget(normalizedPath);
           setAppPathDraft(shouldClearClaudeDefaultTarget ? '' : normalizedPath);
           setAppPathScanRootsDraft(
-            appPathMissing.app === 'claude' ? config.claude_app_scan_roots || '' : '',
+            appPathMissing.app === 'claude'
+              ? config.claude_app_scan_roots || ''
+              : isTraePlatformApp(appPathMissing.app)
+                ? getTraeAppScanRoots(config, appPathMissing.app) || ''
+                : '',
           );
           setAppPathCodexLaunchOnSwitch(config.codex_launch_on_switch ?? true);
         }
@@ -2959,6 +3000,11 @@ function MainApp() {
       await invoke('set_app_path', { app, path });
       if (app === 'claude') {
         await invoke('set_claude_app_scan_roots', {
+          scanRoots: appPathScanRootsDraft.trim(),
+        });
+      } else if (isTraePlatformApp(app)) {
+        await invoke('set_trae_app_scan_roots', {
+          app,
           scanRoots: appPathScanRootsDraft.trim(),
         });
       }

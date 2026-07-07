@@ -146,6 +146,13 @@ interface GeneralConfig {
   codebuddy_cn_app_path: string;
   qoder_app_path: string;
   trae_app_path: string;
+  trae_solo_app_path: string;
+  trae_cn_app_path: string;
+  trae_solo_cn_app_path: string;
+  trae_app_scan_roots: string;
+  trae_solo_app_scan_roots: string;
+  trae_cn_app_scan_roots: string;
+  trae_solo_cn_app_scan_roots: string;
   workbuddy_app_path: string;
   zed_app_path: string;
   codebuddy_auto_refresh_minutes: number;
@@ -217,8 +224,13 @@ type AppPathTarget =
   | 'codebuddy_cn'
   | 'qoder'
   | 'trae'
+  | 'trae_solo'
+  | 'trae_cn'
+  | 'trae_solo_cn'
   | 'workbuddy'
   | 'zed';
+
+type TraeAppPathTarget = 'trae' | 'trae_solo' | 'trae_cn' | 'trae_solo_cn';
 
 type ClaudeDesktopLaunchCandidate = {
   target_type: string;
@@ -227,6 +239,7 @@ type ClaudeDesktopLaunchCandidate = {
   source: string;
   supports_multi_instance: boolean;
 };
+type AppLaunchCandidate = ClaudeDesktopLaunchCandidate;
 const REFRESH_PRESET_VALUES = ['-1', '2', '5', '10', '15'];
 const CURRENT_ACCOUNT_REFRESH_PRESET_VALUES = ['1', '2', '5', '10', '15'];
 const THRESHOLD_PRESET_VALUES = ['0', '20', '40', '60'];
@@ -428,6 +441,9 @@ export function SettingsPage() {
   const [codebuddyCnAppPath, setCodebuddyCnAppPath] = useState('');
   const [qoderAppPath, setQoderAppPath] = useState('');
   const [traeAppPath, setTraeAppPath] = useState('');
+  const [traeSoloAppPath, setTraeSoloAppPath] = useState('');
+  const [traeCnAppPath, setTraeCnAppPath] = useState('');
+  const [traeSoloCnAppPath, setTraeSoloCnAppPath] = useState('');
   const [workbuddyAppPath, setWorkbuddyAppPath] = useState('');
   const [zedAppPath, setZedAppPath] = useState('');
   const [codebuddyAutoRefresh, setCodebuddyAutoRefresh] = useState('10');
@@ -476,6 +492,12 @@ export function SettingsPage() {
   const [workbuddyQuotaAlertThresholdCustomMode, setWorkbuddyQuotaAlertThresholdCustomMode] = useState(false);
   const [appPathResetDetectingTargets, setAppPathResetDetectingTargets] = useState<Set<AppPathTarget>>(new Set());
   const [claudeLaunchCandidates, setClaudeLaunchCandidates] = useState<ClaudeDesktopLaunchCandidate[]>([]);
+  const [traeAppScanRoots, setTraeAppScanRoots] = useState('');
+  const [traeSoloAppScanRoots, setTraeSoloAppScanRoots] = useState('');
+  const [traeCnAppScanRoots, setTraeCnAppScanRoots] = useState('');
+  const [traeSoloCnAppScanRoots, setTraeSoloCnAppScanRoots] = useState('');
+  const [traeLaunchCandidatesTarget, setTraeLaunchCandidatesTarget] = useState<TraeAppPathTarget>('trae');
+  const [traeLaunchCandidates, setTraeLaunchCandidates] = useState<AppLaunchCandidate[]>([]);
   const [opencodeSyncOnSwitch, setOpencodeSyncOnSwitch] = useState(false);
   const [opencodeAuthOverwriteOnSwitch, setOpencodeAuthOverwriteOnSwitch] = useState(false);
   const [openclawAuthOverwriteOnSwitch, setOpenclawAuthOverwriteOnSwitch] = useState(false);
@@ -889,6 +911,13 @@ export function SettingsPage() {
           codebuddyCnAppPath,
           qoderAppPath,
           traeAppPath,
+          traeSoloAppPath,
+          traeCnAppPath,
+          traeSoloCnAppPath,
+          traeAppScanRoots,
+          traeSoloAppScanRoots,
+          traeCnAppScanRoots,
+          traeSoloCnAppScanRoots,
           workbuddyAppPath,
           zedAppPath,
           opencodeSyncOnSwitch,
@@ -1021,6 +1050,13 @@ export function SettingsPage() {
     codebuddyCnAppPath,
     qoderAppPath,
     traeAppPath,
+    traeSoloAppPath,
+    traeCnAppPath,
+    traeSoloCnAppPath,
+    traeAppScanRoots,
+    traeSoloAppScanRoots,
+    traeCnAppScanRoots,
+    traeSoloCnAppScanRoots,
     workbuddyAppPath,
     zedAppPath,
     opencodeSyncOnSwitch,
@@ -1318,6 +1354,15 @@ export function SettingsPage() {
       setCodebuddyCnAppPath(config.codebuddy_cn_app_path || '');
       setQoderAppPath(config.qoder_app_path || '');
       setTraeAppPath(config.trae_app_path || '');
+      setTraeSoloAppPath(config.trae_solo_app_path || '');
+      setTraeCnAppPath(config.trae_cn_app_path || '');
+      setTraeSoloCnAppPath(config.trae_solo_cn_app_path || '');
+      setTraeAppScanRoots(config.trae_app_scan_roots || '');
+      setTraeSoloAppScanRoots(config.trae_solo_app_scan_roots || '');
+      setTraeCnAppScanRoots(config.trae_cn_app_scan_roots || '');
+      setTraeSoloCnAppScanRoots(config.trae_solo_cn_app_scan_roots || '');
+      setTraeLaunchCandidatesTarget('trae');
+      setTraeLaunchCandidates([]);
       setWorkbuddyAppPath(config.workbuddy_app_path || '');
       setZedAppPath(config.zed_app_path || '');
       setCodebuddyAutoRefresh(String(config.codebuddy_auto_refresh_minutes ?? 10));
@@ -1520,6 +1565,87 @@ export function SettingsPage() {
 
   const isAppPathResetDetecting = (target: AppPathTarget) => appPathResetDetectingTargets.has(target);
 
+  const isTraeAppPathTarget = (target: AppPathTarget): target is TraeAppPathTarget =>
+    target === 'trae' || target === 'trae_solo' || target === 'trae_cn' || target === 'trae_solo_cn';
+
+  const getTraeAppPathValue = (target: TraeAppPathTarget) => {
+    switch (target) {
+      case 'trae_solo':
+        return traeSoloAppPath;
+      case 'trae_cn':
+        return traeCnAppPath;
+      case 'trae_solo_cn':
+        return traeSoloCnAppPath;
+      case 'trae':
+      default:
+        return traeAppPath;
+    }
+  };
+
+  const setTraeAppPathValue = (target: TraeAppPathTarget, path: string) => {
+    switch (target) {
+      case 'trae_solo':
+        setTraeSoloAppPath(path);
+        break;
+      case 'trae_cn':
+        setTraeCnAppPath(path);
+        break;
+      case 'trae_solo_cn':
+        setTraeSoloCnAppPath(path);
+        break;
+      case 'trae':
+      default:
+        setTraeAppPath(path);
+        break;
+    }
+  };
+
+  const getTraeScanRootsValue = (target: TraeAppPathTarget) => {
+    switch (target) {
+      case 'trae_solo':
+        return traeSoloAppScanRoots;
+      case 'trae_cn':
+        return traeCnAppScanRoots;
+      case 'trae_solo_cn':
+        return traeSoloCnAppScanRoots;
+      case 'trae':
+      default:
+        return traeAppScanRoots;
+    }
+  };
+
+  const setTraeScanRootsValue = (target: TraeAppPathTarget, scanRoots: string) => {
+    switch (target) {
+      case 'trae_solo':
+        setTraeSoloAppScanRoots(scanRoots);
+        break;
+      case 'trae_cn':
+        setTraeCnAppScanRoots(scanRoots);
+        break;
+      case 'trae_solo_cn':
+        setTraeSoloCnAppScanRoots(scanRoots);
+        break;
+      case 'trae':
+      default:
+        setTraeAppScanRoots(scanRoots);
+        break;
+    }
+  };
+
+  const getTraeAppDisplayName = (target: TraeAppPathTarget) => {
+    switch (target) {
+      case 'trae_solo':
+        return 'TRAE SOLO';
+      case 'trae_cn':
+        return 'Trae CN';
+      case 'trae_solo_cn':
+        return 'TRAE SOLO CN';
+      case 'trae':
+      default:
+        return 'Trae';
+    }
+  };
+
   const setAppPathForTarget = (target: AppPathTarget, path: string) => {
     if (target === 'antigravity') {
       setAntigravityAppPath(path);
@@ -1541,8 +1667,10 @@ export function SettingsPage() {
       setCodebuddyCnAppPath(path);
     } else if (target === 'qoder') {
       setQoderAppPath(path);
-    } else if (target === 'trae') {
-      setTraeAppPath(path);
+    } else if (isTraeAppPathTarget(target)) {
+      setTraeAppPathValue(target, path);
+      setTraeLaunchCandidatesTarget(target);
+      setTraeLaunchCandidates([]);
     } else if (target === 'workbuddy') {
       setWorkbuddyAppPath(path);
     } else if (target === 'zed') {
@@ -1574,8 +1702,10 @@ export function SettingsPage() {
     if (target === 'qoder') {
       return t('settings.general.qoderPathReset', '重置默认');
     }
-    if (target === 'trae') {
-      return t('settings.general.traePathReset', '重置默认');
+    if (isTraeAppPathTarget(target)) {
+      return isWindows
+        ? t('appPath.missing.scanApps', '扫描应用')
+        : t('settings.general.traePathReset', '重置默认');
     }
     if (target === 'workbuddy') {
       return t('settings.general.workbuddyPathReset', '重置默认');
@@ -1628,6 +1758,28 @@ export function SettingsPage() {
     setClaudeLaunchCandidates([]);
   };
 
+  const handlePickTraeScanRoot = async (target: TraeAppPathTarget) => {
+    try {
+      const selected = await open({
+        multiple: false,
+        directory: true,
+      });
+      const path = Array.isArray(selected) ? selected[0] : selected;
+      if (!path) return;
+      setTraeScanRootsValue(target, path);
+      setTraeLaunchCandidatesTarget(target);
+      setTraeLaunchCandidates([]);
+    } catch (err) {
+      console.error('选择 Trae 扫描范围失败:', err);
+    }
+  };
+
+  const handleClearTraeScanRoot = (target: TraeAppPathTarget) => {
+    setTraeScanRootsValue(target, '');
+    setTraeLaunchCandidatesTarget(target);
+    setTraeLaunchCandidates([]);
+  };
+
   const handlePickCodexSpecifiedAppPath = async () => {
     try {
       const selected = await open({
@@ -1666,6 +1818,22 @@ export function SettingsPage() {
         }
         return;
       }
+      if (isTraeAppPathTarget(target) && isWindows) {
+        const candidates = await invoke<AppLaunchCandidate[]>('scan_app_launch_targets', {
+          app: target,
+          scanRoots: getTraeScanRootsValue(target).trim() || null,
+        });
+        setTraeLaunchCandidatesTarget(target);
+        setTraeLaunchCandidates(candidates);
+        if (candidates.length === 0) {
+          alert(t('appPath.missing.scanEmptyGeneric', '未扫描到 {{app}}，请手动选择路径或调整扫描范围。', {
+            app: getTraeAppDisplayName(target),
+          }));
+        } else {
+          setTraeAppPathValue(target, candidates[0].target);
+        }
+        return;
+      }
       const detected = await invoke<string | null>('detect_app_path', { app: target, force: true });
       setAppPathForTarget(target, detected || '');
     } catch (err) {
@@ -1684,6 +1852,10 @@ export function SettingsPage() {
     setClaudeAppPath(candidate.target);
   };
 
+  const handleSelectTraeLaunchCandidate = (target: TraeAppPathTarget, candidate: AppLaunchCandidate) => {
+    setTraeAppPathValue(target, candidate.target);
+  };
+
   const sanitizeNumberInput = (value: string) => value.replace(/[^\d]/g, '');
 
   const normalizeNumberInput = (value: string, min: number, max?: number): string => {
@@ -1693,6 +1865,108 @@ export function SettingsPage() {
     }
     const bounded = Math.max(min, max ? Math.min(parsed, max) : parsed);
     return String(bounded);
+  };
+
+  const renderTraeAppPathRow = (
+    target: TraeAppPathTarget,
+    titleKey: string,
+    titleDefault: string,
+  ) => {
+    const appPath = getTraeAppPathValue(target);
+    const scanRoots = getTraeScanRootsValue(target);
+    const displayName = getTraeAppDisplayName(target);
+    const showCandidates =
+      isWindows && traeLaunchCandidatesTarget === target && traeLaunchCandidates.length > 0;
+
+    return (
+      <div className="settings-row" key={target}>
+        <div className="row-label">
+          <div className="row-title">{t(titleKey, titleDefault)}</div>
+          <div className="row-desc">{t('settings.general.traeAppPathDesc', '留空则使用默认路径')}</div>
+        </div>
+        <div className="row-control row-control--grow settings-claude-launch-control">
+          {isWindows ? (
+            <div className="settings-claude-scan-roots">
+              <label>{t('appPath.missing.scanRoots', '扫描范围')}</label>
+              <div className="settings-claude-scan-root-row">
+                <input
+                  type="text"
+                  className="settings-input settings-claude-scan-roots-input"
+                  value={scanRoots}
+                  placeholder={t(
+                    'appPath.missing.scanRootsPlaceholder',
+                    '可选，选择一个目录或盘符；留空时按盘符扫描 WindowsApps 并补充开始菜单应用。',
+                  )}
+                  readOnly
+                />
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => handlePickTraeScanRoot(target)}
+                  disabled={isAppPathResetDetecting(target)}
+                >
+                  {t('settings.general.codexPathSelect', '选择')}
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => handleClearTraeScanRoot(target)}
+                  disabled={isAppPathResetDetecting(target) || !scanRoots.trim()}
+                >
+                  {t('common.clear', '清除')}
+                </button>
+              </div>
+            </div>
+          ) : null}
+          <div className="settings-claude-launch-row">
+            <input
+              type="text"
+              className="settings-input settings-input--path"
+              value={appPath}
+              placeholder={t('settings.general.traeAppPathPlaceholder', '默认路径')}
+              onChange={(e) => setTraeAppPathValue(target, e.target.value)}
+            />
+            <button
+              className="btn btn-secondary"
+              onClick={() => handlePickAppPath(target)}
+              disabled={isAppPathResetDetecting(target)}
+            >
+              {t('settings.general.traePathSelect', '选择')}
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => handleResetAppPath(target)}
+              disabled={isAppPathResetDetecting(target)}
+            >
+              <RefreshCw size={16} className={isAppPathResetDetecting(target) ? 'spin' : undefined} />
+              {isAppPathResetDetecting(target)
+                ? t('common.loading', '加载中...')
+                : getResetLabelByTarget(target)}
+            </button>
+          </div>
+          {showCandidates ? (
+            <div className="settings-claude-candidate-list">
+              {traeLaunchCandidates.map((candidate) => (
+                <button
+                  key={`${target}:${candidate.target_type}:${candidate.target}`}
+                  type="button"
+                  className={`settings-claude-candidate-item${
+                    appPath.trim() === candidate.target ? ' selected' : ''
+                  }`}
+                  onClick={() => handleSelectTraeLaunchCandidate(target, candidate)}
+                >
+                  <div className="settings-claude-candidate-main">
+                    <span>{candidate.label || displayName}</span>
+                    <span className="settings-claude-candidate-badge">EXE</span>
+                  </div>
+                  <div className="settings-claude-candidate-target">
+                    {candidate.target}
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
   };
 
   const setCurrentAccountRefreshValue = (
@@ -5078,8 +5352,39 @@ export function SettingsPage() {
                       <div className="row-title">{t('settings.general.traeAppPath', 'Trae 启动路径')}</div>
                       <div className="row-desc">{t('settings.general.traeAppPathDesc', '留空则使用默认路径')}</div>
                     </div>
-                    <div className="row-control row-control--grow">
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: 1 }}>
+                    <div className="row-control row-control--grow settings-claude-launch-control">
+                      {isWindows ? (
+                        <div className="settings-claude-scan-roots">
+                          <label>{t('appPath.missing.scanRoots', '扫描范围')}</label>
+                          <div className="settings-claude-scan-root-row">
+                            <input
+                              type="text"
+                              className="settings-input settings-claude-scan-roots-input"
+                              value={traeAppScanRoots}
+                              placeholder={t(
+                                'appPath.missing.scanRootsPlaceholder',
+                                '可选，选择一个目录或盘符；留空时按盘符扫描 WindowsApps 并补充开始菜单应用。',
+                              )}
+                              readOnly
+                            />
+                            <button
+                              className="btn btn-secondary"
+                              onClick={() => handlePickTraeScanRoot('trae')}
+                              disabled={isAppPathResetDetecting('trae')}
+                            >
+                              {t('settings.general.codexPathSelect', '选择')}
+                            </button>
+                            <button
+                              className="btn btn-secondary"
+                              onClick={() => handleClearTraeScanRoot('trae')}
+                              disabled={isAppPathResetDetecting('trae') || !traeAppScanRoots.trim()}
+                            >
+                              {t('common.clear', '清除')}
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                      <div className="settings-claude-launch-row">
                         <input
                           type="text"
                           className="settings-input settings-input--path"
@@ -5105,6 +5410,28 @@ export function SettingsPage() {
                             : getResetLabelByTarget('trae')}
                         </button>
                       </div>
+                      {isWindows && traeLaunchCandidatesTarget === 'trae' && traeLaunchCandidates.length > 0 ? (
+                        <div className="settings-claude-candidate-list">
+                          {traeLaunchCandidates.map((candidate) => (
+                            <button
+                              key={`${candidate.target_type}:${candidate.target}`}
+                              type="button"
+                              className={`settings-claude-candidate-item${
+                                traeAppPath.trim() === candidate.target ? ' selected' : ''
+                              }`}
+                              onClick={() => handleSelectTraeLaunchCandidate('trae', candidate)}
+                            >
+                              <div className="settings-claude-candidate-main">
+                                <span>{candidate.label || 'Trae'}</span>
+                                <span className="settings-claude-candidate-badge">EXE</span>
+                              </div>
+                              <div className="settings-claude-candidate-target">
+                                {candidate.target}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
 
@@ -5124,6 +5451,22 @@ export function SettingsPage() {
                       </label>
                     </div>
                   </div>
+                  {renderTraeAppPathRow(
+                    'trae_solo',
+                    'settings.general.traeSoloAppPath',
+                    'TRAE SOLO 启动路径',
+                  )}
+                  {renderTraeAppPathRow(
+                    'trae_cn',
+                    'settings.general.traeCnAppPath',
+                    'Trae CN 启动路径',
+                  )}
+                  {renderTraeAppPathRow(
+                    'trae_solo_cn',
+                    'settings.general.traeSoloCnAppPath',
+                    'TRAE SOLO CN 启动路径',
+                  )}
+
                   {traeQuotaAlertEnabled && (
                     <div className="settings-row" style={{ animation: 'fadeUp 0.3s ease both' }}>
                       <div className="row-label">
