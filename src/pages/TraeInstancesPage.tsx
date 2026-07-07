@@ -75,6 +75,7 @@ export function TraeInstancesContent({
           {getTraePlanDisplayName(account)}
         </span>
       )}
+      getAccountDisplayText={getTraeAccountDisplayName}
       getAccountSearchText={(account) =>
         `${getTraeAccountDisplayName(account)} ${getTraeAccountDisplayEmail(account)} ${getTraePlanDisplayName(account)}`
       }
