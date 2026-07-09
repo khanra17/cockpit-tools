@@ -14131,6 +14131,7 @@ pub async fn update_local_access_api_key(
     model_prefix: Option<String>,
     allowed_models: Option<Vec<String>>,
     excluded_models: Option<Vec<String>>,
+    account_ids: Option<Vec<String>>,
 ) -> Result<CodexLocalAccessState, String> {
     ensure_runtime_loaded().await?;
     let maybe_collection = {
@@ -14163,6 +14164,9 @@ pub async fn update_local_access_api_key(
     }
     if let Some(excluded_models) = excluded_models {
         collection.api_keys[index].excluded_models = normalize_model_rule_list(excluded_models);
+    }
+    if let Some(account_ids) = account_ids {
+        collection.api_keys[index].account_ids = normalize_account_id_list(account_ids);
     }
     collection.api_keys[index].updated_at = now_ms();
     if !collection.api_keys.iter().any(|item| item.enabled) {
@@ -19021,7 +19025,7 @@ mod tests {
         is_upstream_response_failed_error_message, legacy_stream_error_category,
         local_access_chat_completions_url, macos_proxy_url_from_scutil_map,
         max_credential_attempts_for_strategy, merge_collection_and_account_excluded_models,
-        model_pricing, model_provider_direct_test_client_model,
+        model_pricing, model_provider_direct_test_client_model, normalize_account_id_list,
         model_provider_test_uses_provider_gateway, normalize_account_model_rules,
         normalize_custom_routing_rules, normalized_sidecar_error_category,
         open_local_access_logs_db_once, parse_codex_retry_after,
@@ -19037,8 +19041,9 @@ mod tests {
         resolve_upstream_target, restore_config_toml_from_takeover_backup,
         sanitize_collection_with_accounts, scutil_proxy_map,
         should_retry_single_account_upstream_status, should_treat_response_as_stream,
-        should_try_next_account, sidecar_api_key_account_scope_values, sidecar_auth_file_name,
-        sidecar_auth_json_for_account, sidecar_auths_dir,
+        should_try_next_account, sidecar_api_key_account_scope_values,
+        sidecar_api_key_manifest_values, sidecar_auth_file_name, sidecar_auth_json_for_account,
+        sidecar_auths_dir,
         sidecar_cached_account_usable_after_prepare_error, sidecar_codex_api_key_auth_id,
         sidecar_config_fingerprint, sidecar_payload_default_service_tier,
         sidecar_routing_strategy_value, sidecar_stable_id, supported_codex_model_ids,
@@ -19137,6 +19142,40 @@ mod tests {
             created_at: 0,
             updated_at: 0,
         }
+    }
+
+    #[test]
+    fn update_api_key_account_scope_filters_duplicates_and_updates_manifest_scope() {
+        let mut collection = test_local_access_collection(vec![
+            "account-a".to_string(),
+            "account-b".to_string(),
+            "account-c".to_string(),
+        ]);
+        let mut api_key = build_local_access_api_key(Some("Team A"));
+        api_key.key = "team-a-key".to_string();
+        api_key.account_ids = normalize_account_id_list(vec![
+            "account-b".to_string(),
+            "account-b".to_string(),
+            " account-c ".to_string(),
+            "".to_string(),
+        ]);
+        collection.api_keys = vec![api_key];
+
+        let manifest_values = sidecar_api_key_manifest_values(&collection);
+        let scoped = manifest_values
+            .iter()
+            .find(|value| value.get("key").and_then(Value::as_str) == Some("team-a-key"))
+            .expect("scoped key should be emitted");
+
+        let account_ids = scoped
+            .get("accountIds")
+            .and_then(Value::as_array)
+            .expect("accountIds should be an array")
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>();
+
+        assert_eq!(account_ids, vec!["account-b", "account-c"]);
     }
 
     #[test]
