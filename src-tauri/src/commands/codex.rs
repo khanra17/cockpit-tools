@@ -1873,16 +1873,7 @@ fn normalize_model_provider_wire_api(value: Option<&str>, base_url: &str) -> Str
 }
 
 const RESPONSES_NATIVE_CHAT_TEST_MODEL_PRIORITY: &[&str] =
-    &[
-        "gpt-5.6-sol",
-        "gpt-5.6-terra",
-        "gpt-5.6-luna",
-        "gpt-5.5",
-        "gpt-5.4",
-        "gpt-5",
-        "gpt-4.1",
-        "gpt-4o",
-    ];
+    &["gpt-5.5", "gpt-5.4", "gpt-5", "gpt-4.1", "gpt-4o"];
 
 fn is_image_generation_model_id(model_id: &str) -> bool {
     let lower = model_id.trim().to_ascii_lowercase();

@@ -156,14 +156,7 @@ const CODEX_OFFICIAL_EMPTY_HEADERS: &[&str] = &[
     "x-client-request-id",
     "x-responsesapi-include-timing-metrics",
 ];
-const DEFAULT_CODEX_MODELS: &[&str] = &[
-    "gpt-5.6-sol",
-    "gpt-5.6-terra",
-    "gpt-5.6-luna",
-    "gpt-5.5",
-    "gpt-5.4",
-    "gpt-5.4-mini",
-];
+const DEFAULT_CODEX_MODELS: &[&str] = &["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"];
 const CODEX_IMAGE_MODEL_ID: &str = "gpt-image-2";
 const CODEX_AUTO_REVIEW_MODEL_ID: &str = "codex-auto-review";
 const DEFAULT_IMAGES_MAIN_MODEL: &str = "gpt-5.4-mini";
@@ -18978,9 +18971,9 @@ mod tests {
         sidecar_config_fingerprint, sidecar_payload_default_service_tier,
         sidecar_routing_strategy_value, sidecar_stable_id, supported_codex_model_ids,
         system_proxy_target_scheme, system_proxy_value_url, validate_client_model_visible,
-        visible_codex_model_ids_for_api_key, visible_codex_model_ids_for_collection,
-        websocket_accept_value, websocket_connect_error_from_http_response,
-        windows_proxy_url_from_server, windows_reg_dword_enabled, windows_reg_query_map,
+        visible_codex_model_ids_for_api_key, websocket_accept_value,
+        websocket_connect_error_from_http_response, windows_proxy_url_from_server,
+        windows_reg_dword_enabled, windows_reg_query_map,
         write_local_access_profile_model_override, write_provider_gateway_model_catalog,
         write_string_atomic, write_string_atomic_if_changed, CodexLocalAccessCollection,
         CodexLocalAccessGatewayMode, CodexLocalAccessScope,
@@ -21207,43 +21200,6 @@ data: {"type":"response.completed","response":{"id":"resp_123","usage":{"input_t
 
         assert!(has_image_model);
         assert!(has_auto_review_model);
-    }
-
-    #[test]
-    fn api_service_models_include_latest_codex_models() {
-        let model_ids = supported_codex_model_ids();
-        for expected in ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"] {
-            assert!(
-                model_ids
-                    .iter()
-                    .any(|model| model.eq_ignore_ascii_case(expected)),
-                "API service supported model list should include {expected}"
-            );
-        }
-
-        let collection = test_local_access_collection(vec!["account-1".to_string()]);
-        let visible = visible_codex_model_ids_for_collection(&collection, None);
-        for expected in ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"] {
-            assert!(
-                visible
-                    .iter()
-                    .any(|model| model.eq_ignore_ascii_case(expected)),
-                "API service state modelIds should include {expected}"
-            );
-        }
-
-        let response = build_local_models_response(&visible);
-        let data = response
-            .get("data")
-            .and_then(Value::as_array)
-            .expect("local models response should include data");
-        for expected in ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"] {
-            assert!(
-                data.iter()
-                    .any(|model| model.get("id").and_then(Value::as_str) == Some(expected)),
-                "/v1/models should include {expected}"
-            );
-        }
     }
 
     #[test]

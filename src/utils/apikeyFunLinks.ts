@@ -4,9 +4,6 @@ export const APIKEY_FUN_GLOBAL_ENDPOINT = 'https://api.apikey.fun';
 export const APIKEY_FUN_DIRECT_ENDPOINT = 'https://slb.apikey.fun';
 export const APIKEY_FUN_SOURCE_TAG = 'apikey_fun';
 export const APIKEY_FUN_DEFAULT_MODEL_CATALOG = [
-  'gpt-5.6-sol',
-  'gpt-5.6-terra',
-  'gpt-5.6-luna',
   'gpt-5.5',
   'gpt-5.4',
   'gpt-5.4-mini',

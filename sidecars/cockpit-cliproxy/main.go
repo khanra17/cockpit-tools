@@ -863,7 +863,7 @@ func buildOllamaShowResponse(model string, modifiedAt time.Time) gin.H {
 
 func ollamaModelFamily(model string) string {
 	normalized := strings.ToLower(strings.TrimSpace(model))
-	for _, prefix := range []string{"gpt-5.6", "gpt-5.5", "gpt-5.4", "gpt-5.3", "gpt-5.2", "gpt-5.1", "gpt-oss", "codex"} {
+	for _, prefix := range []string{"gpt-5.5", "gpt-5.4", "gpt-5.3", "gpt-5.2", "gpt-5.1", "gpt-oss", "codex"} {
 		if strings.HasPrefix(normalized, prefix) {
 			return prefix
 		}
@@ -881,7 +881,7 @@ func ollamaModelFamily(model string) string {
 
 func ollamaContextLength(model string) int {
 	switch {
-	case strings.HasPrefix(model, "gpt-5.6"), strings.HasPrefix(model, "gpt-5.5"), strings.HasPrefix(model, "gpt-5.4"):
+	case strings.HasPrefix(model, "gpt-5.5"), strings.HasPrefix(model, "gpt-5.4"):
 		return 400000
 	case strings.HasPrefix(model, "gpt-5.3"), strings.HasPrefix(model, "gpt-5.2"), strings.HasPrefix(model, "gpt-5.1"):
 		return 272000
@@ -925,12 +925,6 @@ func displayNameForModel(model string) string {
 		return "GPT-5 Codex"
 	case "gpt-5-codex-mini":
 		return "GPT-5 Codex Mini"
-	case "gpt-5.6-sol":
-		return "5.6 Sol"
-	case "gpt-5.6-terra":
-		return "5.6 Terra"
-	case "gpt-5.6-luna":
-		return "5.6 Luna"
 	case "gpt-5.4":
 		return "GPT-5.4"
 	case "gpt-5.4-mini":

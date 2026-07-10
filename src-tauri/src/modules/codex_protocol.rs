@@ -142,9 +142,6 @@ fn display_name_for_model(model_id: &str) -> String {
     match model_id {
         "gpt-5-codex" => "GPT-5 Codex".to_string(),
         "gpt-5-codex-mini" => "GPT-5 Codex Mini".to_string(),
-        "gpt-5.6-sol" => "5.6 Sol".to_string(),
-        "gpt-5.6-terra" => "5.6 Terra".to_string(),
-        "gpt-5.6-luna" => "5.6 Luna".to_string(),
         "gpt-5.4" => "GPT-5.4".to_string(),
         "gpt-5.4-mini" => "GPT-5.4 Mini".to_string(),
         "gpt-5.3-codex" => "GPT-5.3 Codex".to_string(),
@@ -514,22 +511,5 @@ mod tests {
             .pointer("/models/0/input_modalities")
             .and_then(Value::as_array)
             .is_some());
-    }
-
-    #[test]
-    fn codex_client_models_use_latest_luna_display_name() {
-        let response = build_codex_client_models_response(&["gpt-5.6-luna".to_string()]);
-        assert_eq!(
-            response
-                .pointer("/models/0/display_name")
-                .and_then(Value::as_str),
-            Some("5.6 Luna")
-        );
-        assert_eq!(
-            response
-                .pointer("/models/0/description")
-                .and_then(Value::as_str),
-            Some("5.6 Luna")
-        );
     }
 }
