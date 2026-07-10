@@ -3091,6 +3091,7 @@ export function CodexApiServicePage() {
               <div className="codex-api-service-head-actions">
                 <div
                   className="codex-api-service-range-tabs"
+                  role="group"
                   aria-label={t(
                     "codex.apiService.keys.usageRange",
                     "Key 用量统计周期",
@@ -3101,6 +3102,7 @@ export function CodexApiServicePage() {
                       key={option.key}
                       type="button"
                       className={statsRange === option.key ? "active" : ""}
+                      aria-pressed={statsRange === option.key}
                       onClick={() => setStatsRange(option.key)}
                     >
                       {option.label}
@@ -3151,20 +3153,17 @@ export function CodexApiServicePage() {
                   apiKey,
                   policyDraft,
                 );
-                const validDraftAccountIds = policyDraft.accountIds.filter(
-                  (accountId) => keySelectableAccountIdSet.has(accountId),
-                );
                 const customScopeInvalid =
                   !policyDraft.inheritAccountPool &&
-                  validDraftAccountIds.length === 0;
+                  policyDraft.accountIds.length === 0;
                 const keyStats = apiKeyStatsById.get(apiKey.id);
                 const keyUsage = keyStats?.usage;
                 const keySuccessRate =
                   keyUsage && keyUsage.requestCount > 0
-                    ? `${Math.round(
+                    ? Math.round(
                         (keyUsage.successCount / keyUsage.requestCount) * 100,
-                      )}%`
-                    : "--";
+                      )
+                    : 0;
                 const policyExpanded = expandedApiKeyPolicyIds.has(apiKey.id);
                 return (
                   <div key={apiKey.id} className="codex-api-service-key-card">
@@ -3259,7 +3258,7 @@ export function CodexApiServicePage() {
                           ? t(
                               "codex.apiService.keys.accountScopeInheritedCount",
                               "账号池：继承 {{count}} 个",
-                              { count: memberAccounts.length },
+                              { count: memberIds.length },
                             )
                           : persistedAccountIds.length === 0
                             ? t(
@@ -3272,8 +3271,8 @@ export function CodexApiServicePage() {
                               {
                                 selected: persistedAccountIds.length,
                                 total: persistedInheritAccountPool
-                                  ? memberAccounts.length
-                                  : keySelectableAccounts.length,
+                                  ? memberIds.length
+                                  : keySelectableAccountIds.length,
                               },
                             )}
                       </span>
@@ -3291,7 +3290,7 @@ export function CodexApiServicePage() {
                       <span>
                         {t("codex.localAccess.stats.successRate", {
                           rate: keySuccessRate,
-                          defaultValue: "成功率 {{rate}}",
+                          defaultValue: "成功率 {{rate}}%",
                         })}
                       </span>
                       <span>
@@ -3357,16 +3356,24 @@ export function CodexApiServicePage() {
                                     : t(
                                         "codex.apiService.keys.accountScopeSelected",
                                         "已选择 {{count}} 个账号",
-                                        { count: validDraftAccountIds.length },
+                                        { count: policyDraft.accountIds.length },
                                       )}
                             </span>
                           </div>
-                          <div className="api-key-account-scope-mode">
+                          <div
+                            className="api-key-account-scope-mode"
+                            role="group"
+                            aria-label={t(
+                              "codex.apiService.keys.accountScope",
+                              "账号轮转范围",
+                            )}
+                          >
                             <button
                               type="button"
                               className={
                                 policyDraft.inheritAccountPool ? "active" : ""
                               }
+                              aria-pressed={policyDraft.inheritAccountPool}
                               onClick={() =>
                                 setApiKeyPolicyDrafts((drafts) => ({
                                   ...drafts,
@@ -3396,6 +3403,7 @@ export function CodexApiServicePage() {
                               className={
                                 policyDraft.inheritAccountPool ? "" : "active"
                               }
+                              aria-pressed={!policyDraft.inheritAccountPool}
                               onClick={() =>
                                 setApiKeyPolicyDrafts((drafts) => {
                                   const currentDraft =
@@ -4012,12 +4020,20 @@ export function CodexApiServicePage() {
                 ))}
               </div>
               <div className="codex-api-service-head-actions">
-                <div className="codex-api-service-range-tabs">
+                <div
+                  className="codex-api-service-range-tabs"
+                  role="group"
+                  aria-label={t(
+                    "codex.apiService.keys.usageRange",
+                    "Key 用量统计周期",
+                  )}
+                >
                   {statsRangeOptions.map((option) => (
                     <button
                       key={option.key}
                       type="button"
                       className={statsRange === option.key ? "active" : ""}
+                      aria-pressed={statsRange === option.key}
                       onClick={() => setStatsRange(option.key)}
                     >
                       {option.label}
