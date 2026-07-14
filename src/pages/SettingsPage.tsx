@@ -505,7 +505,6 @@ export function SettingsPage() {
   const [opencodeAppPath, setOpencodeAppPath] = useState('');
   const [antigravityAppPath, setAntigravityAppPath] = useState('');
   const [codexAppPath, setCodexAppPath] = useState('');
-  const [codexAppScanRoots, setCodexAppScanRoots] = useState('');
   const [codexLaunchCandidates, setCodexLaunchCandidates] = useState<AppLaunchCandidate[]>([]);
   const [codexAppScanError, setCodexAppScanError] = useState('');
   const [claudeAppPath, setClaudeAppPath] = useState('');
@@ -1902,38 +1901,6 @@ export function SettingsPage() {
     }
   };
 
-  const getTraeScanRootsValue = (target: TraeAppPathTarget) => {
-    switch (target) {
-      case 'trae_solo':
-        return traeSoloAppScanRoots;
-      case 'trae_cn':
-        return traeCnAppScanRoots;
-      case 'trae_solo_cn':
-        return traeSoloCnAppScanRoots;
-      case 'trae':
-      default:
-        return traeAppScanRoots;
-    }
-  };
-
-  const setTraeScanRootsValue = (target: TraeAppPathTarget, scanRoots: string) => {
-    switch (target) {
-      case 'trae_solo':
-        setTraeSoloAppScanRoots(scanRoots);
-        break;
-      case 'trae_cn':
-        setTraeCnAppScanRoots(scanRoots);
-        break;
-      case 'trae_solo_cn':
-        setTraeSoloCnAppScanRoots(scanRoots);
-        break;
-      case 'trae':
-      default:
-        setTraeAppScanRoots(scanRoots);
-        break;
-    }
-  };
-
   const getTraeAppDisplayName = (target: TraeAppPathTarget) => {
     switch (target) {
       case 'trae_solo':
@@ -1986,9 +1953,47 @@ export function SettingsPage() {
     }
   };
 
+  const getAppPathDisplayName = (target: AppPathTarget) => {
+    switch (target) {
+      case 'antigravity':
+        return 'Antigravity';
+      case 'codex':
+        return 'ChatGPT / Codex';
+      case 'claude':
+        return 'Claude Desktop';
+      case 'vscode':
+        return 'Visual Studio Code';
+      case 'windsurf':
+        return 'Windsurf';
+      case 'kiro':
+        return 'Kiro';
+      case 'cursor':
+        return 'Cursor';
+      case 'codebuddy':
+        return 'CodeBuddy';
+      case 'codebuddy_cn':
+        return 'CodeBuddy CN';
+      case 'qoder':
+        return 'Qoder';
+      case 'zcode':
+        return 'ZCode';
+      case 'trae':
+      case 'trae_solo':
+      case 'trae_cn':
+      case 'trae_solo_cn':
+        return getTraeAppDisplayName(target);
+      case 'workbuddy':
+        return 'WorkBuddy';
+      case 'zed':
+        return 'Zed';
+      case 'opencode':
+        return 'OpenCode';
+    }
+  };
+
   const getResetLabelByTarget = (target: AppPathTarget) => {
-    if (target === 'codex' && isWindows) {
-      return t('appPath.missing.scanApps', '扫描应用');
+    if (isWindows) {
+      return t('appPath.missing.scanApps', '检测运行中应用');
     }
     if (target === 'vscode') {
       return t('settings.general.vscodePathReset', '重置默认');
@@ -2012,14 +2017,10 @@ export function SettingsPage() {
       return t('settings.general.qoderPathReset', '重置默认');
     }
     if (target === 'zcode') {
-      return isWindows
-        ? t('appPath.missing.scanApps', '扫描应用')
-        : t('settings.general.codexPathReset', '重置默认');
+      return t('settings.general.codexPathReset', '重置默认');
     }
     if (isTraeAppPathTarget(target)) {
-      return isWindows
-        ? t('appPath.missing.scanApps', '扫描应用')
-        : t('settings.general.traePathReset', '重置默认');
+      return t('settings.general.traePathReset', '重置默认');
     }
     if (target === 'workbuddy') {
       return t('settings.general.workbuddyPathReset', '重置默认');
@@ -2031,7 +2032,7 @@ export function SettingsPage() {
       return t('settings.general.opencodePathReset', '重置默认');
     }
     if (target === 'claude') {
-      return t('appPath.missing.scanApps', '扫描应用');
+      return t('settings.general.codexPathReset', '重置默认');
     }
     return t('settings.general.codexPathReset', '重置默认');
   };
@@ -2050,70 +2051,6 @@ export function SettingsPage() {
     } catch (err) {
       console.error('选择启动路径失败:', err);
     }
-  };
-
-  const handlePickClaudeScanRoot = async () => {
-    try {
-      const selected = await open({
-        multiple: false,
-        directory: true,
-      });
-      const path = Array.isArray(selected) ? selected[0] : selected;
-      if (!path) return;
-      setClaudeAppScanRoots(path);
-      setClaudeLaunchCandidates([]);
-    } catch (err) {
-      console.error('选择 Claude 扫描范围失败:', err);
-    }
-  };
-
-  const handleClearClaudeScanRoot = () => {
-    setClaudeAppScanRoots('');
-    setClaudeLaunchCandidates([]);
-  };
-
-  const handlePickCodexScanRoot = async () => {
-    try {
-      const selected = await open({
-        multiple: false,
-        directory: true,
-      });
-      const path = Array.isArray(selected) ? selected[0] : selected;
-      if (!path) return;
-      setCodexAppScanRoots(path);
-      setCodexLaunchCandidates([]);
-      setCodexAppScanError('');
-    } catch (err) {
-      console.error('选择 Codex 扫描范围失败:', err);
-    }
-  };
-
-  const handleClearCodexScanRoot = () => {
-    setCodexAppScanRoots('');
-    setCodexLaunchCandidates([]);
-    setCodexAppScanError('');
-  };
-
-  const handlePickTraeScanRoot = async (target: TraeAppPathTarget) => {
-    try {
-      const selected = await open({
-        multiple: false,
-        directory: true,
-      });
-      const path = Array.isArray(selected) ? selected[0] : selected;
-      if (!path) return;
-      setTraeScanRootsValue(target, path);
-      setTraeLaunchCandidatesTarget(target);
-      setTraeLaunchCandidates([]);
-    } catch (err) {
-      console.error('选择 Trae 扫描范围失败:', err);
-    }
-  };
-
-  const handleClearTraeScanRoot = (target: TraeAppPathTarget) => {
-    setTraeScanRootsValue(target, '');
-    setTraeLaunchCandidatesTarget(target);
-    setTraeLaunchCandidates([]);
   };
 
   const handlePickCodexSpecifiedAppPath = async () => {
@@ -2138,51 +2075,35 @@ export function SettingsPage() {
       return next;
     });
     try {
-      if (target === 'codex' && isWindows) {
-        setCodexAppScanError('');
+      if (isWindows) {
         const candidates = await invoke<AppLaunchCandidate[]>('scan_app_launch_targets', {
           app: target,
-          scanRoots: codexAppScanRoots.trim() || null,
         });
-        setCodexLaunchCandidates(candidates);
-        if (candidates.length === 0) {
-          setCodexAppScanError(
-            t('appPath.missing.scanEmptyGeneric', '未扫描到 {{app}}，请手动选择路径或调整扫描范围。', {
-              app: t('nav.codex', 'Codex'),
-            }),
-          );
+        if (target === 'codex') {
+          setCodexAppScanError('');
+          setCodexLaunchCandidates(candidates);
+        } else if (target === 'claude') {
+          setClaudeLaunchCandidates(candidates);
+        } else if (isTraeAppPathTarget(target)) {
+          setTraeLaunchCandidatesTarget(target);
+          setTraeLaunchCandidates(candidates);
         }
-        return;
-      }
-      if (target === 'claude') {
-        const candidates = await invoke<ClaudeDesktopLaunchCandidate[]>(
-          'scan_claude_desktop_launch_targets',
-          {
-            scanRoots: claudeAppScanRoots.trim() || null,
-          },
-        );
-        setClaudeLaunchCandidates(candidates);
-        if (candidates.length === 0) {
-          alert(t(
-            'settings.general.claudeLaunchScanEmpty',
-            '未扫描到 Claude Desktop，请手动选择 Claude.exe 或调整扫描范围。',
-          ));
-        }
-        return;
-      }
-      if (isTraeAppPathTarget(target) && isWindows) {
-        const candidates = await invoke<AppLaunchCandidate[]>('scan_app_launch_targets', {
-          app: target,
-          scanRoots: getTraeScanRootsValue(target).trim() || null,
-        });
-        setTraeLaunchCandidatesTarget(target);
-        setTraeLaunchCandidates(candidates);
-        if (candidates.length === 0) {
-          alert(t('appPath.missing.scanEmptyGeneric', '未扫描到 {{app}}，请手动选择路径或调整扫描范围。', {
-            app: getTraeAppDisplayName(target),
-          }));
+
+        if (candidates.length > 0) {
+          if (target !== 'codex' && target !== 'claude') {
+            setAppPathForTarget(target, candidates[0].target);
+          }
         } else {
-          setTraeAppPathValue(target, candidates[0].target);
+          const message = t(
+            'appPath.missing.scanEmptyGeneric',
+            '未检测到正在运行的 {{app}}，请先启动应用后重试，或手动选择路径。',
+            { app: getAppPathDisplayName(target) },
+          );
+          if (target === 'codex') {
+            setCodexAppScanError(message);
+          } else {
+            alert(message);
+          }
         }
         return;
       }
@@ -2234,7 +2155,6 @@ export function SettingsPage() {
     titleDefault: string,
   ) => {
     const appPath = getTraeAppPathValue(target);
-    const scanRoots = getTraeScanRootsValue(target);
     const displayName = getTraeAppDisplayName(target);
     const showCandidates =
       isWindows && traeLaunchCandidatesTarget === target && traeLaunchCandidates.length > 0;
@@ -2246,37 +2166,6 @@ export function SettingsPage() {
           <div className="row-desc">{t('settings.general.traeAppPathDesc', '留空则使用默认路径')}</div>
         </div>
         <div className="row-control row-control--grow settings-claude-launch-control">
-          {isWindows ? (
-            <div className="settings-claude-scan-roots">
-              <label>{t('appPath.missing.scanRoots', '扫描范围')}</label>
-              <div className="settings-claude-scan-root-row">
-                <input
-                  type="text"
-                  className="settings-input settings-claude-scan-roots-input"
-                  value={scanRoots}
-                  placeholder={t(
-                    'appPath.missing.scanRootsPlaceholder',
-                    '可选，选择一个目录或盘符；留空时按盘符扫描 WindowsApps 并补充开始菜单应用。',
-                  )}
-                  readOnly
-                />
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => handlePickTraeScanRoot(target)}
-                  disabled={isAppPathResetDetecting(target)}
-                >
-                  {t('settings.general.codexPathSelect', '选择')}
-                </button>
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => handleClearTraeScanRoot(target)}
-                  disabled={isAppPathResetDetecting(target) || !scanRoots.trim()}
-                >
-                  {t('common.clear', '清除')}
-                </button>
-              </div>
-            </div>
-          ) : null}
           <div className="settings-claude-launch-row">
             <input
               type="text"
@@ -4461,37 +4350,6 @@ export function SettingsPage() {
                   <div className="row-desc">{t('settings.general.codexAppPathDesc', '留空则使用默认路径')}</div>
                 </div>
                 <div className="row-control row-control--grow settings-claude-launch-control">
-                  {isWindows ? (
-                    <div className="settings-claude-scan-roots">
-                      <label>{t('appPath.missing.scanRoots', '扫描范围')}</label>
-                      <div className="settings-claude-scan-root-row">
-                        <input
-                          type="text"
-                          className="settings-input settings-claude-scan-roots-input"
-                          value={codexAppScanRoots}
-                          placeholder={t(
-                            'appPath.missing.scanRootsPlaceholder',
-                            '可选，选择一个目录或盘符；留空时按盘符扫描 WindowsApps 并补充开始菜单应用。',
-                          )}
-                          readOnly
-                        />
-                        <button
-                          className="btn btn-secondary"
-                          onClick={handlePickCodexScanRoot}
-                          disabled={isAppPathResetDetecting('codex')}
-                        >
-                          {t('settings.general.codexPathSelect', '选择')}
-                        </button>
-                        <button
-                          className="btn btn-secondary"
-                          onClick={handleClearCodexScanRoot}
-                          disabled={isAppPathResetDetecting('codex') || !codexAppScanRoots.trim()}
-                        >
-                          {t('common.clear', '清除')}
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
                   <div className="settings-claude-launch-row">
                     <input
                       type="text"
@@ -4895,37 +4753,6 @@ export function SettingsPage() {
                       </div>
                     </div>
                     <div className="row-control row-control--grow settings-claude-launch-control">
-                      <div className="settings-claude-scan-roots">
-                        <label>{t('appPath.missing.scanRoots', '扫描范围')}</label>
-                        <div className="settings-claude-scan-root-row">
-                          <input
-                            type="text"
-                            className="settings-input settings-claude-scan-roots-input"
-                            value={claudeAppScanRoots}
-                            placeholder={t(
-                              'appPath.missing.scanRootsPlaceholder',
-                              '可选，选择一个目录或盘符；留空时按盘符扫描 WindowsApps 并补充开始菜单应用。',
-                            )}
-                            readOnly
-                          />
-                          <button
-                            className="btn btn-secondary"
-                            onClick={handlePickClaudeScanRoot}
-                            disabled={isAppPathResetDetecting('claude')}
-                          >
-                            {t('settings.general.codexPathSelect', '选择')}
-                          </button>
-                          <button
-                            className="btn btn-secondary"
-                            onClick={handleClearClaudeScanRoot}
-                            disabled={
-                              isAppPathResetDetecting('claude') || !claudeAppScanRoots.trim()
-                            }
-                          >
-                            {t('common.clear', '清除')}
-                          </button>
-                        </div>
-                      </div>
                       <div className="settings-claude-launch-row">
                         <input
                           type="text"
@@ -6340,37 +6167,6 @@ export function SettingsPage() {
                       <div className="row-desc">{t('settings.general.traeAppPathDesc', '留空则使用默认路径')}</div>
                     </div>
                     <div className="row-control row-control--grow settings-claude-launch-control">
-                      {isWindows ? (
-                        <div className="settings-claude-scan-roots">
-                          <label>{t('appPath.missing.scanRoots', '扫描范围')}</label>
-                          <div className="settings-claude-scan-root-row">
-                            <input
-                              type="text"
-                              className="settings-input settings-claude-scan-roots-input"
-                              value={traeAppScanRoots}
-                              placeholder={t(
-                                'appPath.missing.scanRootsPlaceholder',
-                                '可选，选择一个目录或盘符；留空时按盘符扫描 WindowsApps 并补充开始菜单应用。',
-                              )}
-                              readOnly
-                            />
-                            <button
-                              className="btn btn-secondary"
-                              onClick={() => handlePickTraeScanRoot('trae')}
-                              disabled={isAppPathResetDetecting('trae')}
-                            >
-                              {t('settings.general.codexPathSelect', '选择')}
-                            </button>
-                            <button
-                              className="btn btn-secondary"
-                              onClick={() => handleClearTraeScanRoot('trae')}
-                              disabled={isAppPathResetDetecting('trae') || !traeAppScanRoots.trim()}
-                            >
-                              {t('common.clear', '清除')}
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
                       <div className="settings-claude-launch-row">
                         <input
                           type="text"

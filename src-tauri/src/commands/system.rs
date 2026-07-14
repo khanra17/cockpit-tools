@@ -3607,18 +3607,46 @@ pub fn detect_app_path(app: String, force: Option<bool>) -> Result<Option<String
 }
 
 #[tauri::command]
-pub fn scan_claude_desktop_launch_targets(
+pub async fn scan_claude_desktop_launch_targets(
     scan_roots: Option<String>,
 ) -> Result<Vec<modules::claude_instance::ClaudeDesktopLaunchCandidate>, String> {
-    let roots = scan_roots
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    Ok(modules::claude_instance::scan_claude_desktop_launch_targets(roots))
+    #[cfg(target_os = "windows")]
+    {
+        let _ = scan_roots;
+        let task = tauri::async_runtime::spawn_blocking(|| {
+            modules::process::scan_app_launch_targets("claude", None)
+        });
+        let candidates = match tokio::time::timeout(Duration::from_secs(2), task).await {
+            Ok(Ok(result)) => result?,
+            Ok(Err(error)) => return Err(format!("检测运行中的 Claude 任务失败: {error}")),
+            Err(_) => return Err("检测运行中的 Claude 超时，请重试".to_string()),
+        };
+        return Ok(candidates
+            .into_iter()
+            .map(
+                |candidate| modules::claude_instance::ClaudeDesktopLaunchCandidate {
+                    target_type: candidate.target_type,
+                    label: candidate.label,
+                    target: candidate.target,
+                    source: candidate.source,
+                    supports_multi_instance: candidate.supports_multi_instance,
+                },
+            )
+            .collect());
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let roots = scan_roots
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        Ok(modules::claude_instance::scan_claude_desktop_launch_targets(roots))
+    }
 }
 
 #[tauri::command]
-pub fn scan_app_launch_targets(
+pub async fn scan_app_launch_targets(
     app: String,
     scan_roots: Option<String>,
 ) -> Result<Vec<modules::process::AppLaunchCandidate>, String> {
@@ -3629,28 +3657,16 @@ pub fn scan_app_launch_targets(
         | "opencode" => {}
         _ => return Err("未知应用类型".to_string()),
     }
+    let _ = scan_roots;
 
-    let roots = scan_roots
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-
-    if app == "claude" {
-        return Ok(
-            modules::claude_instance::scan_claude_desktop_launch_targets(roots)
-                .into_iter()
-                .map(|candidate| modules::process::AppLaunchCandidate {
-                    target_type: candidate.target_type,
-                    label: candidate.label,
-                    target: candidate.target,
-                    source: candidate.source,
-                    supports_multi_instance: candidate.supports_multi_instance,
-                })
-                .collect(),
-        );
+    let task = tauri::async_runtime::spawn_blocking(move || {
+        modules::process::scan_app_launch_targets(app.as_str(), None)
+    });
+    match tokio::time::timeout(Duration::from_secs(2), task).await {
+        Ok(Ok(result)) => result,
+        Ok(Err(error)) => Err(format!("检测运行中的应用任务失败: {error}")),
+        Err(_) => Err("检测运行中的应用超时，请重试".to_string()),
     }
-
-    modules::process::scan_app_launch_targets(app.as_str(), roots)
 }
 
 #[tauri::command]

@@ -1289,7 +1289,7 @@
       "codexLaunchHint": "When turned off, account switching and login overwrite still run, but Codex App will no longer be launched and this path prompt will not appear again.",
       "action": "Set now",
       "claudeMultiInstanceRequiresExe": "Claude multi-instance profiles require the real Claude.exe path. Microsoft Store targets are only for the default desktop profile.",
-      "scanApps": "Scan apps",
+      "scanApps": "Detect running app",
       "scanRoots": "Scan range",
       "scanRootsPlaceholder": "Optional, choose a folder or drive root; leave blank to scan WindowsApps by drive and include Start menu apps.",
       "windowsApp": "Microsoft Store",

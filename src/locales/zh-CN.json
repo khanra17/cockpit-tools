@@ -1292,7 +1292,7 @@
       "codexLaunchHint": "关闭后仅执行切号与登录覆盖，不再尝试启动 Codex App，也不会再次要求设置启动路径。",
       "action": "立即设置",
       "claudeMultiInstanceRequiresExe": "Claude 应用多开需要真实 Claude.exe 路径；Microsoft Store 启动目标仅适用于默认桌面端。",
-      "scanApps": "扫描应用",
+      "scanApps": "检测运行中应用",
       "scanRoots": "扫描范围",
       "scanRootsPlaceholder": "可选，选择一个目录或盘符；留空时按盘符扫描 WindowsApps 并补充开始菜单应用。",
       "windowsApp": "微软商店",
