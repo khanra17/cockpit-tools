@@ -234,6 +234,7 @@ import {
 import { resolveCodexProviderCapabilityProfile } from "../utils/codexProviderGateway";
 import {
   formatCodexQuotaPoolPercent,
+  formatCodexQuotaPoolWindowLabel,
   summarizeCodexQuotaPool,
 } from "../utils/codexQuotaPool";
 import {
@@ -8371,7 +8372,6 @@ export function CodexAccountsPage() {
     localAccessAccountPoolHealthSummary.cooldown > 0;
   const localAccessQuotaPoolLabels = useMemo(
     () => ({
-      hourly: t("codex.localAccess.quotaPool.hourlyShort", "5h"),
       weekly: t("codex.localAccess.quotaPool.weeklyShort", "周"),
       title: t("codex.localAccess.quotaPool.title", "额度池"),
     }),
@@ -11181,14 +11181,15 @@ export function CodexAccountsPage() {
                     <strong>
                       {item.key} ({item.count})
                     </strong>
-                    <span>
-                      {localAccessQuotaPoolLabels.hourly}{" "}
-                      {formatCodexQuotaPoolPercent(item.hourly)}
-                    </span>
-                    <span>
-                      {localAccessQuotaPoolLabels.weekly}{" "}
-                      {formatCodexQuotaPoolPercent(item.weekly)}
-                    </span>
+                    {item.windows.map((window) => (
+                      <span key={window.key}>
+                        {formatCodexQuotaPoolWindowLabel(
+                          window.label,
+                          localAccessQuotaPoolLabels.weekly,
+                        )}{" "}
+                        {formatCodexQuotaPoolPercent(window.percentage)}
+                      </span>
+                    ))}
                   </div>
                 ))}
                 {localAccessQuotaHiddenCount > 0 && (
@@ -16721,18 +16722,19 @@ export function CodexAccountsPage() {
                             </strong>
                           </div>
                           <div className="codex-local-access-stats-values">
-                            <span>
-                              <b>{localAccessQuotaPoolLabels.hourly}</b>
-                              <strong>
-                                {formatCodexQuotaPoolPercent(item.hourly)}
-                              </strong>
-                            </span>
-                            <span>
-                              <b>{localAccessQuotaPoolLabels.weekly}</b>
-                              <strong>
-                                {formatCodexQuotaPoolPercent(item.weekly)}
-                              </strong>
-                            </span>
+                            {item.windows.map((window) => (
+                              <span key={window.key}>
+                                <b>
+                                  {formatCodexQuotaPoolWindowLabel(
+                                    window.label,
+                                    localAccessQuotaPoolLabels.weekly,
+                                  )}
+                                </b>
+                                <strong>
+                                  {formatCodexQuotaPoolPercent(window.percentage)}
+                                </strong>
+                              </span>
+                            ))}
                           </div>
                         </div>
                       ))}
