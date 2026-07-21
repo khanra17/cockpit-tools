@@ -60,7 +60,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -o pipefail
-          npx tauri build --ci --bundles nsis 2>&1 | tee build-windows-x64-nsis.log
+          npx tauri build --ci --config src-tauri/tauri.ci.conf.json --bundles nsis 2>&1 | tee build-windows-x64-nsis.log
 
       - name: 📜 Print build log on failure
         if: failure()
