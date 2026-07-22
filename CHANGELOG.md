@@ -7,6 +7,16 @@ All notable changes to Cockpit Tools will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
+## [1.3.14] - 2026-07-22
+
+### Added
+
+- **Web Sessions can be registered automatically as Agent Identity accounts**: confirmed imports are added to the Codex API Service account pool automatically and can be exported and imported across devices; these accounts are limited to API Service use and do not support normal account switching, client or CLI launch, or OAuth binding.
+
+### Fixed
+
+- **Fixed custom Responses API Key accounts with “Sync model catalog to Codex” enabled being rejected by Codex API Service**: model-catalog synchronization continues to affect only direct account switching and instance-specific gateways, no longer changes API Service pool eligibility, and keeps Chat Completions accounts isolated behind instance-specific gateways.
+
 ## [1.3.13] - 2026-07-22
 
 ### Fixed
